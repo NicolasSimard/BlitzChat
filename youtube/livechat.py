@@ -9,6 +9,7 @@ Module to work with youtube live chat comments attached to a live broadcast.
 #TODO: take an argument in LiveChatRefresher class to print the messages as they
 #      are retrieved.
 #TODO: Make sure we don't save over an existing file...
+#TODO: Use RLock instead of Lock...
 
 # NOTE: To convert the string s='2018-01-16T16:31:12.000Z' to a datetime
 #       object: dt = dateutil.parser.parse(s). The tzinfo will be tzutc()
@@ -22,7 +23,7 @@ from apiclient.errors import HttpError
 import threading
 import datetime
 import time
-import dateutil.parser
+from dateutil.parser import parse as dateparser
 import json
 
 class ChatMessage:
@@ -33,6 +34,13 @@ class ChatMessage:
         published_at        Moment at which the message was published.
         content             Text content of the message.
 
+    Representation:
+    A dictionarry
+    {
+        "author": str,
+        "publishedAt": str,
+        "textMessageDetails": str
+    }
     """
 
     def __init__(self, author, published_at, content):
@@ -68,10 +76,17 @@ class Chat:
 
     Methods:
         append_messages     Append messages to the object's messages
+        
+    Representation:
+    {
+        "messages": [
+            ChatMessage
+        ]
+    }
     """
 
-    def __init__(self):
-        self.messages = []
+    def __init__(self, messages):
+        self.messages = messages
         self.lock = threading.Lock()
         self.has_new_messages = threading.Event()
         self.is_over = threading.Event()
@@ -123,6 +138,65 @@ class Chat:
             ("items", self.messages[index:])
         ])
 
+    def __repr__(self):
+        return dict(
+            ("messages", [mess.__repr__() for mess in self.messages])
+        )
+        
+    def __str__(self):
+        str = "The messages are:\n"
+        for message in self.messages:
+            str += message.__str__() + "\n"
+        return str
+ 
+
+class MockChat(Chat):
+    """ A MockChat object represents a mock chat, i.e. a reproduction of a live
+    chat from a Chat representation. It is a Chat object with extra properties
+    and methods.
+    
+    Attributes:
+        messages            List of ChatMessage objects.
+        lock                A threading.Lock object to lock the Chat.
+        has_new_messages    A threading.Event object that is set when there are
+                            new messages.
+        is_over             A threading.Event object that is set when the chat
+                            is over.
+    
+    Representation:
+    {
+        "messages": [
+            ChatMessage
+        ]
+    }
+    """
+    
+    def __init__(self, messages):
+        super().__init__(messages)
+        try:
+            self.start_time = dateparser(self.messages[0].published_at)
+        except IndexError:
+            print("No messages in MockChat.")
+        self._actual_start_time = datetime.datetime.now()
+        self._last_refresh_index = 0
+            
+    def refresh(self):
+        """"""
+        
+        delta = datetime.datetime.now() - self._actual_start_time
+        print("refreshing {}".format(self.start_time + delta))
+        while self._last_refresh_index < len(self.messages) \
+            and dateparser(self.messages[self._last_refresh_index].published_at) < (self.start_time + delta):
+            self._last_refresh_index += 1
+        
+        
+    def __str__(self):
+        str = "Mock Chat started at {}.\n".format(self.start_time)
+        for message in self.messages[:self._last_refresh_index]:
+            str += message.__str__() + "\n"
+        return str
+
+ 
 class LiveChat(Chat):
     """ A LiveChat object represents a Youtube live chat. It is a Chat object
     with extra properties and methods.
@@ -131,6 +205,16 @@ class LiveChat(Chat):
         live_broadcast      The LiveBroadcast object to which the chat is attached.
         youtube_service     The youtube service of the associated live broadcast.
         id                  The id of the live chat.
+    
+    Representation:
+    {
+        "liveBroadcast": LiveBroadcast,
+        "liveChatId": str,
+        "publishedAt" = str,
+        "messages": [
+            ChatMessage
+        ]
+    }
     """
 
     def __init__(self, live_broadcast):
@@ -138,16 +222,13 @@ class LiveChat(Chat):
         service and the corresponding live broadcast ressource.
         """
 
-        super().__init__()
+        super().__init__([])
         self.live_broadcast = live_broadcast
+        self.id = self.live_broadcast.get_live_chat_id()        
 
     @property
     def youtube_service(self):
         return self.live_broadcast.youtube_service
-        
-    @property
-    def id(self):
-        return self.live_broadcast.get_live_chat_id()
 
     def save_to_file(self, file_path):
         """ Save a LiveChat to the file given by file_path.
@@ -159,20 +240,17 @@ class LiveChat(Chat):
             json.dump(self.__repr__(), file)
         
     def __repr__(self):
-        return dict([
+        live_chat_info = dict([
             ("liveBroadcast", self.live_broadcast.__repr__()),
             ("liveChatId", self.id),
-            ("publishedAt", self.live_broadcast.published_at.__repr__()),
-            ("messages", [mess.__repr__() for mess in self.messages])
+            ("publishedAt", self.live_broadcast.published_at.__repr__())
         ])
+        return live_chat_info.update(super().__repr__())
 
     def __str__(self):
-        str = "Live Chat with id {} attached to Live Broadcast with id {}."\
+        str = "Live Chat with id {} attached to Live Broadcast with id {}.\n"\
               .format(self.id, self.live_broadcast.id)
-        str += "\n\nThe messages are:\n"
-        for message in self.messages:
-            str += message.__str__() + "\n"
-        return str
+        return str + super().__str__()
 
 class LiveChatRefresher(threading.Thread):
     def __init__(self, live_chat, refresh_rate):
@@ -217,7 +295,7 @@ class LiveChatRefresher(threading.Thread):
             time.sleep(self.refresh_rate)
         
         print(self.live_chat) #VERB
-
+        
 
 class LiveChatBkp(threading.Thread):
     """ A thread that backs up a LiveChat periodically. """
@@ -229,13 +307,30 @@ class LiveChatBkp(threading.Thread):
     def run(self):
         pass
         
-        
+ 
 def chatmessage_from_ress(ress):
+    """ Return a ChatMessage, given a youtube#liveChatMessage ressource. """
     return ChatMessage(
-                ress["snippet"]["authorChannelId"],
-                ress["snippet"]["publishedAt"],
-                ress["snippet"]["textMessageDetails"]["messageText"]
-           )
+        ress["snippet"]["authorChannelId"],
+        ress["snippet"]["publishedAt"],
+        ress["snippet"]["textMessageDetails"]["messageText"]
+    )
 
+           
+def chat_message_from_dict(dic):
+    """ Return a ChatMessage, given a representation of a ChatMessage. """
+
+    return ChatMessage(
+        dic.get("author", "???"),
+        dic.get("publishedAt", "???"),
+        dic.get("textMessageDetails", "???")
+    )
+           
+def chat_from_archive(message_list):
+    return Chat([chat_message_from_dict(mess) for mess in message_list])
+    
+def mock_chat_from_archive(message_list):
+    return MockChat([chat_message_from_dict(mess) for mess in message_list])
+           
 def livechat_from_livebroascast(live_broadcast):
     return LiveChat(live_broadcast)
