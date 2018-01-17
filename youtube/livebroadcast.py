@@ -19,7 +19,7 @@ class LiveBroadcast:
         """ Initialize the live broadcast from a youtube service, an id and
         keywords arguments snippet containing the snippet info of the ress. """
 
-        self._snippet = snippet # Can change wheh the LiveBroadcast is refreshed
+        self._snippet = snippet
         self.id = id
         self.youtube_service = youtube_service
 
@@ -44,7 +44,7 @@ class LiveBroadcast:
     def get_live_chat_id(self):
         """ Return the id of the associated live chat. """
         
-        return self._snippet.get("liveChatId", "")
+        return self._snippet.get("liveChatId", None)
       
     def refresh(self):
         try:
@@ -56,7 +56,10 @@ class LiveBroadcast:
             print("An HTTP error {} occurred while refreshing Broadcast {}:\n{}"
                 .format(e.resp.status, self.name, e.content)
             )
-        self._snippet = response["items"][0]["snippet"]    
+        # Update self._snippet with the key/value pairs from response_snippet,
+        # overwriting existing keys
+        response_snippet = response["items"][0]["snippet"]
+        self._snippet.update(response_snippet)
       
     def __repr__(self):
         return dict([
