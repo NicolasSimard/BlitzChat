@@ -1,7 +1,10 @@
 # Client secret files
 client_secrets.json
-storage/
 
+# Private info
+storage/
+drive-archive/
+nppsession.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
