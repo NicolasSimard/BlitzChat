@@ -19,7 +19,7 @@ class LiveBroadcast:
         """ Initialize the live broadcast from a youtube service, an id and
         keywords arguments snippet containing the snippet info of the ress. """
 
-        self._snippet = snippet
+        self._snippet = snippet # Can change wheh the LiveBroadcast is refreshed
         self.id = id
         self.youtube_service = youtube_service
 
@@ -33,18 +33,18 @@ class LiveBroadcast:
     def title(self):
         """ Return the title of the live broadcast. """
         
-        return self._snippet["title"]
+        return self._snippet.get("title", "")
         
     @property
     def published_at(self):
         """ Return the moment at which the live broadcast started. """
         
-        return self._snippet["publishedAt"]
+        return self._snippet.get("publishedAt", "")
 
     def get_live_chat_id(self):
         """ Return the id of the associated live chat. """
         
-        return self._snippet["liveChatId"]
+        return self._snippet.get("liveChatId", "")
       
     def refresh(self):
         try:
