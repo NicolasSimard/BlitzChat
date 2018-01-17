@@ -1,6 +1,3 @@
-from oauth2client.tools import argparser
-from apiclient.errors import HttpError
-
 import json
 from threading import Thread
 
@@ -10,9 +7,7 @@ CLIENT_SECRETS_FILE = "client_secrets.json"
 STORAGE_FILE_NAME = "chatanalysis"
 LIVE_CHAT_REFRESH_RATE = 10
 
-
 youtube = lc.get_authenticated_youtube_service(
-    argparser.parse_args(),
     CLIENT_SECRETS_FILE,
     STORAGE_FILE_NAME
 )
