@@ -81,8 +81,22 @@ def list_active_live_broadcasts(youtube_service):
             .format(e.resp.status, e.content)
         )
     return response["items"]
+    
+def list_live_broadcast_by_id(youtube_service, id):
+    """List all active live broadcasts attached to the authenticated service."""
 
-def livebroadcast_from_ress(youtube_service, ress):
+    try:
+        response = youtube_service.liveBroadcasts().list(
+            id=id,
+            part="id, snippet"
+        ).execute()
+    except HttpError as e:
+        print("An HTTP error {} occurred while retrieving live broadcasts:\n{}"
+            .format(e.resp.status, e.content)
+        )
+    return response["items"]
+
+def live_broadcast_from_ress(youtube_service, ress):
     """ Return a LiveBroadcast object from a youtube_service and a liveBroadcasts
     broadcast ressource. """
 
