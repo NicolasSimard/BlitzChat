@@ -6,14 +6,24 @@ Module to work with youtube live chat comments attached to a live broadcast.
 
 #TODO: Replace author chanel ID with author name
 #TODO: The published_at attribute of ChatMessage should be a datetime object
-#TODO: Load only new comments in refresh method (make a messages() and messages_next()
-#      methods in Chat class. The methods responses should include a bookmark and the messages)
 #TODO: take an argument in LiveChatRefresher class to print the messages as they
 #      are retrieved.
+#TODO: Make sure we don't save over an existing file...
+
+# NOTE: To convert the string s='2018-01-16T16:31:12.000Z' to a datetime
+#       object: dt = dateutil.parser.parse(s). The tzinfo will be tzutc()
+#       Given such a UTC time dt, you can convert it to a local time:
+#       >>> dt = dateutil.parser.parse(s); dt
+#       datetime.datetime(2018, 1, 16, 16, 31, 12, tzinfo=tzutc())
+#       >>> dt.astimezone(dateutil.tz.tzlocal())
+#       datetime.datetime(2018, 1, 16, 11, 31, 12, tzinfo=tzlocal())
 
 from apiclient.errors import HttpError
 import threading
-
+import datetime
+import time
+import dateutil.parser
+import json
 
 class ChatMessage:
     """ A ChatMessage object represents a message in a Chat.
@@ -27,11 +37,15 @@ class ChatMessage:
 
     def __init__(self, author, published_at, content):
         self.author = author
-        self.published_at = published_at
+        self.published_at = published_at # A string like '2018-01-16T16:31:12.000Z'
         self.content = content
 
     def __repr__(self):
-        return self.__str__()
+        return dict([
+            ("author", self.author),
+            ("publishedAt", self.published_at),
+            ("textMessageDetails", self.content)
+        ])
 
     def __str__(self):
         return "{} at {}: {}".format(
@@ -67,6 +81,47 @@ class Chat:
 
         self.messages += messages
 
+    def get_messages(self):
+        """ Return all messages in the Chat object. 
+        
+        The response is a dictionnary
+        {
+            "index": int,
+            "items":[
+                ChatMessage
+            ]
+        }
+        
+        where index is an integer containing the index of the last
+        message in the list of messages that was returned. This index
+        can then be used in the get_messages_next method.
+        """
+        
+        return dict([
+            ("index", len(self.messages)),
+            ("items", self.messages)
+        ])
+        
+    def get_messages_next(self, index):
+        """ Return the messages in the Chat object starting from index. 
+        
+        The response is a dictionnary
+        {
+            "index": int,
+            "items":[
+                ChatMessage
+            ]
+        }
+        
+        where index is an integer containing the index of the last
+        message in the list of messages that was returned. This index
+        can then be used in the get_messages_next method.
+        """
+        
+        return dict([
+            ("index", len(self.messages)),
+            ("items", self.messages[index:])
+        ])
 
 class LiveChat(Chat):
     """ A LiveChat object represents a Youtube live chat. It is a Chat object
@@ -94,8 +149,22 @@ class LiveChat(Chat):
     def id(self):
         return self.live_broadcast.get_live_chat_id()
 
+    def save_to_file(self, file_path):
+        """ Save a LiveChat to the file given by file_path.
+        
+        This prints self.__repr__() to a file.
+        """
+        
+        with open(file_path, 'w') as file:
+            json.dump(self.__repr__(), file)
+        
     def __repr__(self):
-        return self.__str__()
+        return dict([
+            ("liveBroadcast", self.live_broadcast.__repr__()),
+            ("liveChatId", self.id),
+            ("publishedAt", self.live_broadcast.published_at.__repr__()),
+            ("messages", [mess.__repr__() for mess in self.messages])
+        ])
 
     def __str__(self):
         str = "Live Chat with id {} attached to Live Broadcast with id {}."\
@@ -119,15 +188,28 @@ class LiveChatRefresher(threading.Thread):
             part="snippet"
         )
 
-        while request is not None and input("Stop?") != "Y": #VERB
+        while request is not None: #and input("Stop?") != "Y": #VERB
+            self.live_chat.has_new_messages.clear()
             try:
                 response = request.execute()
             except HttpError as e:
-                print("An HTTP error {} occurred while refreshing the comments:\n{}"
-                    .format(e.resp.status, e.content)
-                )
+                # e.content is of type byte
+                # e.content.decode() is a string representing a dict
+                # Use json.loads to make the string into a dict
+                e_info = json.loads(e.content.decode())           
+                e_message = e_info['error']['message']
+                
+                if e_message == 'The live chat is no longer live.':
+                    print(e_message)
+                    self.live_chat.is_over.set()
+                else:
+                    print("An HTTP error {} occurred while refreshing the chat:\n{}"
+                        .format(e.resp.status, e_message)
+                    )
                 break
             with self.live_chat.lock:
+                if len(response["items"]) > 0:
+                    self.live_chat.has_new_messages.set()
                 self.live_chat.append_messages(
                     [chatmessage_from_ress(ress) for ress in response["items"]]
                 )
@@ -137,6 +219,17 @@ class LiveChatRefresher(threading.Thread):
         print(self.live_chat) #VERB
 
 
+class LiveChatBkp(threading.Thread):
+    """ A thread that backs up a LiveChat periodically. """
+    def __init__(self, live_chat, saving_file, **kwargs):
+        super().__init__()
+        self.saving_file = saving_file
+        
+        
+    def run(self):
+        pass
+        
+        
 def chatmessage_from_ress(ress):
     return ChatMessage(
                 ress["snippet"]["authorChannelId"],
