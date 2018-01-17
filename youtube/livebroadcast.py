@@ -13,6 +13,12 @@ class LiveBroadcast:
 
     Methods:
         get_live_chat_id    Get the ID of the attached live chat.
+        
+    Representation:
+    {
+        "id": str,
+        "snippet": dict
+    }
     """
 
     def __init__(self, youtube_service, id, **snippet):
