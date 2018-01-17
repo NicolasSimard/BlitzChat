@@ -1,5 +1,8 @@
 from apiclient.errors import HttpError
 
+#TODO: When refreshing a live broadcast after is has ended, there is no more
+#      liveChatId is snippets and this causes an error...
+
 class LiveBroadcast:
     """ A LiveChat object represents a Youtube live breadcast.
 
@@ -23,20 +26,46 @@ class LiveBroadcast:
     @property
     def name(self):
         """ Return the name of the live broadcast. """
+        
+        return self.title
+        
+    @property
+    def title(self):
+        """ Return the title of the live broadcast. """
+        
         return self._snippet["title"]
+        
+    @property
+    def published_at(self):
+        """ Return the moment at which the live broadcast started. """
+        
+        return self._snippet["publishedAt"]
 
     def get_live_chat_id(self):
         """ Return the id of the associated live chat. """
-        return self._snippet["liveChatId"]
         
+        return self._snippet["liveChatId"]
+      
+    def refresh(self):
+        try:
+            response = self.youtube_service.liveBroadcasts().list(
+                id=self.id,
+                part="snippet"
+            ).execute()
+        except HttpError as e:
+            print("An HTTP error {} occurred while refreshing Broadcast {}:\n{}"
+                .format(e.resp.status, self.name, e.content)
+            )
+        self._snippet = response["items"][0]["snippet"]    
+      
     def __repr__(self):
-        rep = dict()
-        rep["id"] = self.id
-        rep["snippet"] = self._snippet
-        return rep
+        return dict([
+            ("id", self.id),
+            ("snippet", self._snippet)
+        ])
         
     def __str__(self):
-        return "Live broadcast {}.".format(self.name)
+        return "Live broadcast {}.".format(self.title)
 
 
 def list_active_live_broadcasts(youtube_service):
