@@ -72,7 +72,7 @@ class Chat:
 
     Methods:
         append_messages     Append messages to the object's messages
-        
+
     Representation:
     {
         "messages": [
@@ -90,36 +90,36 @@ class Chat:
     def append_messages(self, messages):
         """ Append messages to the Chat object's messages. """
 
-        
+
         # The append() method is thread safe, so we use it instead of locking
         for message in messages:
             self.messages.append(message)
 
     def get_all_messages(self):
-        """ Return all messages in the Chat object. 
-        
+        """ Return all messages in the Chat object.
+
         The response is a list of all ChatMessage objects in the Chat.
         """
-        
+
         return self.messages
 
     def __repr__(self):
         return dict(
             ("messages", [mess.__repr__() for mess in self.messages])
         )
-        
+
     def __str__(self):
         str = "The messages are:\n"
         for message in self.messages:
             str += message.__str__() + "\n"
         return str
- 
+
 
 class MockChat(Chat):
     """ A MockChat object represents a mock chat, i.e. a reproduction of a live
     chat from a Chat representation. It is a Chat object with extra properties
     and methods.
-    
+
     Attributes:
         messages            List of ChatMessage objects.
         has_new_messages    A threading.Condition object that notifies all the
@@ -128,9 +128,9 @@ class MockChat(Chat):
                             is over.
         start_time          The time at which the chat started. This is the
                             moment where the first message of the chat was posted.
-    
-    Methods: 
-    
+
+    Methods:
+
     Representation:
     {
         "messages": [
@@ -138,15 +138,15 @@ class MockChat(Chat):
         ]
     }
     """
-    
+
     def __init__(self, messages, speed=1):
         """ A mock chat is an object constructed from a list of ChatMessage
         whose purpose is to re-create the chat thread.
-        
+
         The constructor takes a list of ChatMessage objects. If speed is an
         integer different from one, play the chat at speed times the speed.
         """
-        
+
         super().__init__(messages)
         try:
             self.start_time = dateparser(self.messages[0].published_at)
@@ -158,10 +158,17 @@ class MockChat(Chat):
             self.speed = 1
         self._actual_start_time = datetime.datetime.now()
         self._last_refresh_index = 0
+
+    def estimated_duration(self):
+        """ How long should the mock chat last, given its speed."""
     
-    def get_messages_next(self, index):
-        """ Return the messages in the Chat object starting from index. 
+        span = (dateparser(self.messages[-1].published_at)
+                - dateparser(self.messages[0].published_at)).total_seconds()
+        return span / self.speed
         
+    def get_messages_next(self, index):
+        """ Return the messages in the Chat object starting from index.
+
         The response is a dictionnary
         {
             "index": int,
@@ -169,7 +176,7 @@ class MockChat(Chat):
                 ChatMessage
             ]
         }
-        
+
         where index is an integer containing the index of the last
         message in the list of messages that was returned. This index
         can then be used in the get_messages_next method.
@@ -180,20 +187,20 @@ class MockChat(Chat):
             ("index", self._last_refresh_index),
             ("items", self.messages[index:self._last_refresh_index])
         ])
-    
+
     def refresh(self):
         """ As the time passes, more messages are available in the MockChat.
         Calling refresh makes those new messages available.
-        
+
         Every Chat object has a condition object called has_new_messages that
         is set when there are new messages. The threads that want to wait for
         new messages and be notified when there are should use something like
-        
+
         with chat.has_new_messages:
             chat.has_new_messages.wait()
-            do_something_with_the_messages() 
+            do_something_with_the_messages()
         """
-        
+
         delta = datetime.datetime.now() - self._actual_start_time
         delta *= self.speed # Accelerate time
         new_messages = False
@@ -201,25 +208,25 @@ class MockChat(Chat):
             and dateparser(self.messages[self._last_refresh_index].published_at) < (self.start_time + delta):
             self._last_refresh_index += 1
             new_messages = True
-        
+
         if new_messages:
             with self.has_new_messages:
                 self.has_new_messages.notify_all()
-                
+
         if self._last_refresh_index == len(self.messages):
             self.is_over.set()
-        
+
     def __str__(self):
-        str = "Mock Chat which started at {} (at speed {}).\n".format(
+        str = "Mock Chat which started at {} (at speed {}).".format(
             self.start_time,
             self.speed
         )
-        
+
         # for message in self.messages[:self._last_refresh_index]:
             # str += message.__str__() + "\n"
         return str
 
-        
+
 class MockChatRefresher(threading.Thread):
     def __init__(self, mock_chat, refresh_rate, name=None):
         super().__init__(name=name)
@@ -230,10 +237,9 @@ class MockChatRefresher(threading.Thread):
         while not self.mock_chat.is_over.is_set():
             time.sleep(self.refresh_rate)
             self.mock_chat.refresh()
-            
         print("MockChatRefresher {} closing".format(self.name))
 
- 
+
 class LiveChat(Chat):
     """ A LiveChat object represents a Youtube live chat. It is a Chat object
     with extra properties and methods.
@@ -242,7 +248,7 @@ class LiveChat(Chat):
         live_broadcast      The LiveBroadcast object to which the chat is attached.
         youtube_service     The youtube service of the associated live broadcast.
         id                  The id of the live chat.
-    
+
     Representation:
     {
         "liveBroadcast": LiveBroadcast,
@@ -261,15 +267,15 @@ class LiveChat(Chat):
 
         super().__init__([])
         self.live_broadcast = live_broadcast
-        self.id = self.live_broadcast.get_live_chat_id()        
+        self.id = self.live_broadcast.get_live_chat_id()
 
     @property
     def youtube_service(self):
         return self.live_broadcast.youtube_service
 
     def get_messages_next(self, index):
-        """ Return the messages in the LiveChat object starting from index. 
-        
+        """ Return the messages in the LiveChat object starting from index.
+
         The response is a dictionnary
         {
             "index": int,
@@ -277,26 +283,26 @@ class LiveChat(Chat):
                 ChatMessage
             ]
         }
-        
+
         where index is an integer containing the index of the last
         message in the list of messages that was returned. This index
         can then be used in the get_messages_next method.
         """
-        
+
         return dict([
             ("index", len(self.messages)),
             ("items", self.messages[index:])
         ])
-        
+
     def save_to_file(self, file_path):
         """ Save a LiveChat to the file given by file_path.
-        
+
         This prints self.__repr__() to a file.
         """
-        
+
         with open(file_path, 'w') as file:
             json.dump(self.__repr__(), file)
-        
+
     def __repr__(self):
         live_chat_info = dict([
             ("liveBroadcast", self.live_broadcast.__repr__()),
@@ -310,7 +316,7 @@ class LiveChat(Chat):
               .format(self.id, self.live_broadcast.id)
         return str + super().__str__()
 
-        
+
 class LiveChatRefresher(threading.Thread):
     def __init__(self, live_chat, refresh_rate):
         super().__init__()
@@ -333,9 +339,9 @@ class LiveChatRefresher(threading.Thread):
                 # e.content is of type byte
                 # e.content.decode() is a string representing a dict
                 # Use json.loads to make the string into a dict
-                e_info = json.loads(e.content.decode())           
+                e_info = json.loads(e.content.decode())
                 e_message = e_info['error']['message']
-                
+
                 if e_message == 'The live chat is no longer live.':
                     print(e_message)
                     self.live_chat.is_over.set()
@@ -352,26 +358,26 @@ class LiveChatRefresher(threading.Thread):
                 )
             request = live_chat_messages.list_next(request, response)
             time.sleep(self.refresh_rate)
-        
+
         print(self.live_chat) #VERB
-        
+
 
 class LiveChatBkp(threading.Thread):
     """ A thread that backs up a LiveChat periodically. """
     def __init__(self, live_chat, saving_file, **kwargs):
         super().__init__()
         self.saving_file = saving_file
-        
-        
+
+
     def run(self):
         pass
-        
+
 
 class ChatPrinter(threading.Thread):
     def __init__(self, chat, name=None):
         super().__init__(name=name)
         self.chat = chat
-        
+
     def run(self):
         bookmark = 0
         while not self.chat.is_over.is_set():
@@ -381,10 +387,10 @@ class ChatPrinter(threading.Thread):
                 bookmark = response.get("index", 0)
                 for message in response.get("items", []):
                     print(message.__str__())
-        
+
         print("ChatPrinter {} closing.".format(self.name))
-        
-        
+
+
 def chatmessage_from_ress(ress):
     """ Return a ChatMessage, given a youtube#liveChatMessage ressource. """
     return ChatMessage(
@@ -392,7 +398,7 @@ def chatmessage_from_ress(ress):
         ress["snippet"]["publishedAt"],
         ress["snippet"]["textMessageDetails"]["messageText"]
     )
-          
+
 def chat_message_from_dict(dic):
     """ Return a ChatMessage, given a representation of a ChatMessage. """
 
@@ -401,12 +407,12 @@ def chat_message_from_dict(dic):
         dic.get("publishedAt", "???"),
         dic.get("textMessageDetails", "???")
     )
-           
+
 def chat_from_archive(message_list):
     return Chat([chat_message_from_dict(mess) for mess in message_list])
-    
+
 def mock_chat_from_archive(message_list, speed=1):
     return MockChat([chat_message_from_dict(mess) for mess in message_list], speed)
-           
+
 def livechat_from_livebroascast(live_broadcast):
     return LiveChat(live_broadcast)
