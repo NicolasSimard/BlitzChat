@@ -179,22 +179,62 @@ class MockChat(Chat):
             print("No messages in MockChat.")
         self._actual_start_time = datetime.datetime.now()
         self._last_refresh_index = 0
-            
+    
+    def get_messages_next(self, index):
+        """ Return the messages in the Chat object starting from index. 
+        
+        The response is a dictionnary
+        {
+            "index": int,
+            "items":[
+                ChatMessage
+            ]
+        }
+        
+        where index is an integer containing the index of the last
+        message in the list of messages that was returned. This index
+        can then be used in the get_messages_next method.
+        """
+        
+        return dict([
+            ("index", self._last_refresh_index),
+            ("items", self.messages[index:self._last_refresh_index])
+        ])
+    
     def refresh(self):
         """"""
-        
+        self.has_new_messages.clear()
         delta = datetime.datetime.now() - self._actual_start_time
-        print("refreshing {}".format(self.start_time + delta))
+        
         while self._last_refresh_index < len(self.messages) \
             and dateparser(self.messages[self._last_refresh_index].published_at) < (self.start_time + delta):
             self._last_refresh_index += 1
+            self.has_new_messages.set()
+            time.sleep(1)
+            self.has_new_messages.clear()
         
+        if self._last_refresh_index == len(self.messages):
+            self.is_over.set()
         
     def __str__(self):
         str = "Mock Chat started at {}.\n".format(self.start_time)
         for message in self.messages[:self._last_refresh_index]:
             str += message.__str__() + "\n"
         return str
+
+        
+class MockChatRefresher(threading.Thread):
+    def __init__(self, mock_chat, refresh_rate):
+        super().__init__()
+        self.name = "Thread for mock chat."
+        self.mock_chat = mock_chat
+        self.refresh_rate = refresh_rate
+
+    def run(self):
+        while not self.mock_chat.is_over.is_set():
+            self.mock_chat.refresh()
+            time.sleep(self.refresh_rate)
+        print("MockChatRefresher closing")
 
  
 class LiveChat(Chat):
@@ -252,6 +292,7 @@ class LiveChat(Chat):
               .format(self.id, self.live_broadcast.id)
         return str + super().__str__()
 
+        
 class LiveChatRefresher(threading.Thread):
     def __init__(self, live_chat, refresh_rate):
         super().__init__()
