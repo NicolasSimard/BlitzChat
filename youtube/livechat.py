@@ -10,6 +10,7 @@ Module to work with youtube live chat comments attached to a live broadcast.
 #      are retrieved.
 #TODO: Make sure we don't save over an existing file...
 #TODO: Use RLock instead of Lock...
+#TODO: Make sure messages in MockChat are ordered by datetime
 
 # NOTE: To convert the string s='2018-01-16T16:31:12.000Z' to a datetime
 #       object: dt = dateutil.parser.parse(s). The tzinfo will be tzutc()
@@ -36,7 +37,7 @@ class ChatMessage:
         content             Text content of the message.
 
     Representation:
-    A dictionarry
+    A dictionary
     {
         "author": str,
         "publishedAt": str,
@@ -57,9 +58,15 @@ class ChatMessage:
         ])
 
     def __str__(self):
+        # Try to know at which time the message was published
+        try:
+            published_time = dateparser(self.published_at).time()
+        except ValueError as e:
+            published_time = self.published_at
+            
         return "{:20s} at {}: {}".format(
             self.author,
-            re.search('\d{2}:\d{2}:\d{2}', self.published_at).group(0),
+            published_time,
             self.content
         )
 
