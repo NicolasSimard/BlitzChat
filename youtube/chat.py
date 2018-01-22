@@ -165,7 +165,7 @@ class MockChat(Chat, threading.Thread):
         """
 
         Chat.__init__(self, messages)
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name="Mock chat.")
         
         try:
             self.start_time = dateparser(messages[0].published_at)
@@ -253,8 +253,8 @@ class MockChat(Chat, threading.Thread):
             self.speed
         )
 
-        # for message in self.messages[:self._last_refresh_index]:
-            # str += message.__str__() + "\n"
+        for message in self._messages[:self._last_refresh_index]:
+            str += message.__str__() + "\n"
         return str
 
 
