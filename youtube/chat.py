@@ -59,7 +59,7 @@ class ChatMessage:
     def __str__(self):
         # Try to know when the message was published
         try:
-            published_time = dateparser(self.published_at).time()
+            published_time = dateparser(self.published_at).time().replace(microsecond=0)
         except ValueError as e:
             published_time = self.published_at
             
