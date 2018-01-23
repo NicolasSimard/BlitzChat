@@ -1,6 +1,5 @@
-import youtube.tools as yt
-import youtube.other as other
 import youtube.chat as chat
+import youtube.layers as layers
 import json
 import time
 import threading
@@ -19,13 +18,30 @@ REFRESH_RATE = 1
 
 if __name__ == "__main__":
     with open(MESSAGE_SOURCE, 'r') as f:
-        messages = json.load(f)
+        arch_mess = json.load(f)
 
-    mock_chat = chat.mock_chat_from_archive(messages[:50], REFRESH_RATE, speed=20)
+    messages = []
+    
+    layers_list = []
+    
+    mock_chat = chat.mock_chat_from_archive(
+        messages,
+        arch_mess[:10],
+        REFRESH_RATE,
+        speed=5
+    )
+    
+    question_label = layers.Question(messages, mock_chat)
+    
+    printer = layers.Printer(messages, question_label)
+    
+    saver = layers.LiveBackUp(messages, question_label, BKP_DIR)
+
     print(mock_chat)
     print("Should last {} seconds.".format(mock_chat.estimated_duration()))
     
     mock_chat.start()
-    other.Printer(mock_chat).start()
-    other.LiveBackUp(mock_chat, BKP_DIR).start()
+    question_label.start()
+    printer.start()
+    saver.start()
     
