@@ -9,7 +9,7 @@ The classes are:
     MockChat(Chat, Thread)  Represents a chat constructed from a file
 
 The auxilary functions are:
-    
+
 """
 
 from apiclient.errors import HttpError
@@ -47,7 +47,7 @@ class ChatMessage:
         self.published_at = published_at # A string like '2018-01-16T16:31:12.000Z'
         self.content = content
         self.labels=labels
-
+        
     def __repr__(self):
         return dict([
             ("author", self.author),
@@ -62,18 +62,18 @@ class ChatMessage:
             published_time = dateparser(self.published_at).time().replace(microsecond=0)
         except ValueError as e:
             published_time = self.published_at
-            
+
         return "{} {:15s} at {}: {}".format(
             self.labels,
             self.author,
             published_time,
             self.content
         )
-        
-        
+
+
 class Chat:
     """ Chat objects represent youtube chats.
-    
+
     Attributes:
         lock                A threading.Lock object to lock the object
         has_new_messages    A threading.Condition object which is satisfied when
@@ -104,17 +104,20 @@ class Chat:
 
         with self.lock:
             self._messages.extend(messages)
-            
+
 
     def get_all_messages(self):
         """ Return all messages in the Chat object.
 
         The response is a list of all ChatMessage objects in the Chat.
         """
-        
+
         with self.lock:
             return self._messages
 
+    def save(self, target_dir):
+        print("Chat.save method not implemented yet.")
+            
     def __repr__(self):
         return dict(
             ("messages", [message.__repr__() for message in self._messages])
@@ -125,7 +128,7 @@ class Chat:
         for message in self._messages:
             str += message.__str__() + "\n"
         return str
-        
+
 
 class MockChat(Chat, threading.Thread):
     """ A MockChat object represents a mock chat, i.e. a reproduction of a live
@@ -144,7 +147,7 @@ class MockChat(Chat, threading.Thread):
     Methods:
         start               Start the chat.
         estimated_duration
-        
+
 
     Representation:
     {
@@ -166,11 +169,11 @@ class MockChat(Chat, threading.Thread):
 
         Chat.__init__(self, messages)
         threading.Thread.__init__(self, name="Mock chat.")
-        
+
         try:
             self.start_time = dateparser(messages[0].published_at)
         except IndexError:
-            print("No messages in MockChat.")            
+            print("No messages in MockChat.")
         if isinstance(speed, int):
             self.speed = speed
         else:
@@ -181,12 +184,12 @@ class MockChat(Chat, threading.Thread):
 
     def estimated_duration(self):
         """ How long should the mock chat last, given its speed."""
-    
+
         with self.lock:
             span = (dateparser(self._messages[-1].published_at)
                     - dateparser(self._messages[0].published_at)).total_seconds()
             return span / self.speed
-        
+
     def get_messages_next(self, index):
         """ Return the messages in the Chat object starting from index.
 
@@ -222,9 +225,9 @@ class MockChat(Chat, threading.Thread):
             chat.has_new_messages.wait()
             do_something_with_the_messages()
         """
-        
+
         actual_start_time = datetime.datetime.now()
-        
+
         while not self.is_over.is_set():
             delta = datetime.datetime.now() - actual_start_time
             delta *= self.speed # Accelerate time
@@ -237,16 +240,16 @@ class MockChat(Chat, threading.Thread):
 
             if self._last_refresh_index == self.nbr_messages:
                 self.is_over.set()
-                
+
             if new_messages:
                 with self.has_new_messages:
                     self.has_new_messages.notify_all()
-            
+
             time.sleep(self.refresh_rate)
-            
+
     def __repr__(self):
         return Chat.__repr__()
-            
+
     def __str__(self):
         str = "Mock Chat which started at {} (at speed {}).".format(
             self.start_time,
@@ -264,7 +267,7 @@ def mock_chat_from_archive(message_list, refresh_rate, speed=1):
         refresh_rate,
         speed
     )
-       
+
 def chat_message_from_dict(dic):
     """ Return a ChatMessage, given a representation of a ChatMessage. """
 
@@ -273,4 +276,4 @@ def chat_message_from_dict(dic):
         dic.get("publishedAt", "???"),
         dic.get("textMessageDetails", "???"),
         dic.get("labels","")
-    )  
+    )
