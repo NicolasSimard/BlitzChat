@@ -93,44 +93,38 @@ class Chat:
     }
     """
 
-    def __init__(self, messages):
-        self._messages = messages
+    def __init__(self):
         self.lock = threading.Lock()
         self.has_new_messages = threading.Condition()
         self.is_over = threading.Event()
 
-    def append_messages(self, messages):
-        """ Append messages to the Chat object's messages. """
+    # Remove
+    # def append_messages(self, messages):
+        # """ Append messages to the Chat object's messages. """
 
-        with self.lock:
-            self._messages.extend(messages)
+        # with self.lock:
+            # self._messages.extend(messages)
 
+    # Remove
+    # def get_all_messages(self):
+        # """ Return all messages in the Chat object.
 
-    def get_all_messages(self):
-        """ Return all messages in the Chat object.
+        # The response is a list of all ChatMessage objects in the Chat.
+        # """
 
-        The response is a list of all ChatMessage objects in the Chat.
-        """
-
-        with self.lock:
-            return self._messages
-
-    def save(self, target_dir):
-        print("Chat.save method not implemented yet.")
+        # with self.lock:
+            # return self._messages
             
-    def __repr__(self):
-        return dict(
-            ("messages", [message.__repr__() for message in self._messages])
-        )
+    # def __repr__(self):
+        # return dict(
+            # ("messages", [message.__repr__() for message in self._messages])
+        # )
 
-    def __str__(self):
-        str = "The messages are:\n"
-        for message in self._messages:
-            str += message.__str__() + "\n"
-        return str
+    # def __str__(self):
+        # return "Abstract chat class."
 
 
-class MockChat(Chat, threading.Thread):
+class MockChat(threading.Thread):
     """ A MockChat object represents a mock chat, i.e. a reproduction of a live
     chat from a Chat representation. It is a Chat object with extra properties
     and methods.
@@ -157,7 +151,9 @@ class MockChat(Chat, threading.Thread):
     }
     """
 
-    def __init__(self, messages, refresh_rate, speed=1):
+    index = 0
+    
+    def __init__(self, messages, arch_mess, refresh_rate, speed=1):
         """ A mock chat is an object constructed from a list of ChatMessage
         whose purpose is to re-create the chat thread.
 
@@ -167,51 +163,28 @@ class MockChat(Chat, threading.Thread):
         the chat at speed times the speed.
         """
 
-        Chat.__init__(self, messages)
+        Chat.__init__(self)
         threading.Thread.__init__(self, name="Mock chat.")
-
+        self.messages = messages
+        self._arch_mess = arch_mess
         try:
-            self.start_time = dateparser(messages[0].published_at)
+            self.start_time = dateparser(arch_mess[0].published_at)
         except IndexError:
             print("No messages in MockChat.")
         if isinstance(speed, int):
             self.speed = speed
         else:
             self.speed = 1
-        self.nbr_messages = len(messages)
-        self.refresh_rate = refresh_rate
-        self._last_refresh_index = 0
-
+        self.refresh_rate = refresh_rate    
+        self.nbr_messages = len(arch_mess)
+        
     def estimated_duration(self):
         """ How long should the mock chat last, given its speed."""
 
         with self.lock:
-            span = (dateparser(self._messages[-1].published_at)
-                    - dateparser(self._messages[0].published_at)).total_seconds()
+            span = (dateparser(self._arch_mess[-1].published_at)
+                    - dateparser(self._arch_mess[0].published_at)).total_seconds()
             return span / self.speed
-
-    def get_messages_next(self, index):
-        """ Return the messages in the Chat object starting from index.
-
-        The response is a dictionnary
-        {
-            "index": int,
-            "items":[
-                ChatMessage
-            ]
-        }
-
-        where index is an integer containing the index of the last
-        message in the list of messages that was returned. This index
-        can then be used in the get_messages_next method.
-        """
-
-        with self.lock:
-            # Note that the slice operator returns the empty list in L[a:b] if a>=b
-            return dict([
-                ("index", self._last_refresh_index),
-                ("items", self._messages[index:self._last_refresh_index])
-            ])
 
     def run(self):
         """ As the time passes, more messages are available in the MockChat.
@@ -231,39 +204,36 @@ class MockChat(Chat, threading.Thread):
         while not self.is_over.is_set():
             delta = datetime.datetime.now() - actual_start_time
             delta *= self.speed # Accelerate time
-            new_messages = False
-            with self.lock:
-                while self._last_refresh_index < self.nbr_messages \
-                    and dateparser(self._messages[self._last_refresh_index].published_at) < (self.start_time + delta):
-                    self._last_refresh_index += 1
-                    new_messages = True
+            
+            old_index = self.index         
+            while self.index < self.nbr_messages \
+                and dateparser(self._arch_mess[self.index].published_at) < (self.start_time + delta):
+                self.index += 1
 
-            if self._last_refresh_index == self.nbr_messages:
+            if self.index == self.nbr_messages:
                 self.is_over.set()
 
-            if new_messages:
+            if old_index < self.index:
+                self.messages.extend(self._arch_mess[old_index: self.index])
                 with self.has_new_messages:
                     self.has_new_messages.notify_all()
 
             time.sleep(self.refresh_rate)
 
     def __repr__(self):
-        return Chat.__repr__()
+        return self.__str__()
 
     def __str__(self):
-        str = "Mock Chat which started at {} (at speed {}).".format(
+        return "Mock Chat which started at {} (at speed {}).".format(
             self.start_time,
             self.speed
-        )
-
-        for message in self._messages[:self._last_refresh_index]:
-            str += message.__str__() + "\n"
-        return str
+        )  
 
 
-def mock_chat_from_archive(message_list, refresh_rate, speed=1):
+def mock_chat_from_archive(messages, arch_mess, refresh_rate, speed):
     return MockChat(
-        [chat_message_from_dict(mess) for mess in message_list],
+        messages,
+        [chat_message_from_dict(mess) for mess in arch_mess],
         refresh_rate,
         speed
     )
