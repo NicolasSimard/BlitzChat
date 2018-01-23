@@ -10,7 +10,7 @@ def get_authenticated_service(client_secrets_file, storage_path, args = None):
     """Get read only authenticated youtube service."""
 
     if args is None: args = argparser.parse_args()
-    
+
     flow = flow_from_clientsecrets(client_secrets_file,
         scope="https://www.googleapis.com/auth/youtube.readonly",
         message="WARNING: Please configure OAuth 2.0.")
