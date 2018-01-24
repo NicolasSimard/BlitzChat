@@ -4,17 +4,17 @@ import json
 import re
 
 class Layer(threading.Thread):
-    """ Defines an abstract layer in he processing pipe of chat messages.
+    """ Defines an abstract layer in the processing pipe of chat messages.
     """
 
     has_new_messages = threading.Condition()
     index = 0
 
-    def __init__(self, messages, source, name):
+    def __init__(self, chat, source, name):
         super().__init__(name=name)
         self.source = source
         self.is_over = source.is_over
-        self.messages = messages
+        self.chat = chat
 
     def action(self, message):
         print("The Layer.action method should be overriden.")
@@ -26,7 +26,7 @@ class Layer(threading.Thread):
         while not self.source.is_over.is_set():
             with self.source.has_new_messages:
                 self.source.has_new_messages.wait()
-                new_messages = self.messages[self.index: self.source.index]
+                new_messages = self.chat.get_messages(self.index, self.source.index)
 
                 for message in new_messages:
                     self.action(message)
@@ -44,8 +44,8 @@ class Layer(threading.Thread):
 
 
 class Question(Layer):
-    def __init__(self, messages, source):
-        super().__init__(messages, source, name = "naive question detector.")
+    def __init__(self, chat, source):
+        super().__init__(chat, source, name = "naive question detector.")
         self.q_pattern = re.compile(r'\?')
 
     def action(self, message):
@@ -54,8 +54,8 @@ class Question(Layer):
 
 
 class Printer(Layer):
-    def __init__(self, messages, source):
-        super().__init__(messages, source, name = "printer")
+    def __init__(self, chat, source):
+        super().__init__(chat, source, name = "printer")
 
     def action(self, message):
         print(message.__str__())
@@ -74,12 +74,12 @@ class LiveBackUp(Layer):
         buffer_size         Size of the buffer
     """
 
-    def __init__(self, messages, source, target_dir, buffer_size=10):
+    def __init__(self, chat, source, target_dir, buffer_size=10):
         """ Initialize the LiveSaver object with a source and a target
         directory target_dir. The buffer_size parameter is the size of the
         buffer."""
 
-        super().__init__(messages, source, name = "live back up")
+        super().__init__(chat, source, name = "live back up")
         self.buffer_size = buffer_size
         self.source = source
         if not os.path.exists(target_dir):

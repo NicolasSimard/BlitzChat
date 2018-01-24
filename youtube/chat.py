@@ -19,6 +19,7 @@ import time
 from dateutil.parser import parse as dateparser
 import json
 import re
+import os
 
 class ChatMessage:
 
@@ -46,15 +47,15 @@ class ChatMessage:
         self.author = author
         self.published_at = published_at # A string like '2018-01-16T16:31:12.000Z'
         self.content = content
-        self.labels=labels
-        
+        self.labels = labels
+
     def __repr__(self):
         return dict([
             ("author", self.author),
             ("publishedAt", self.published_at),
             ("textMessageDetails", self.content),
             ("labels", self.labels)
-        ])
+        ]).__str__()
 
     def __str__(self):
         # Try to know when the message was published
@@ -72,18 +73,16 @@ class ChatMessage:
 
 
 class Chat:
-    """ Chat objects represent youtube chats.
+    """ A Chat object represents a collention of messages which can vary in time.
 
     Attributes:
         lock                A threading.Lock object to lock the object
-        has_new_messages    A threading.Condition object which is satisfied when
-                            the chat has nes messages.
-        is_over             A threading.Event object which is set when the chat
-                            is over.
 
     Methods:
         append_messages     Append messages to the object's messages
-        get_all_messages    Return all the chat messages in the chat
+        get_messages        Return chat messages
+        append_messages     Append messages to chat object
+        save                Save Chat object to JSON format using its representation
 
     Representation:
     {
@@ -93,35 +92,53 @@ class Chat:
     }
     """
 
-    def __init__(self):
-        self.lock = threading.Lock()
-        self.has_new_messages = threading.Condition()
-        self.is_over = threading.Event()
+    _messages = []
+    lock = threading.RLock()
 
-    # Remove
-    # def append_messages(self, messages):
-        # """ Append messages to the Chat object's messages. """
+    def append_message(self, message):
+        if isinstance(message, ChatMessage):
+            self._messages.append(message) # append is thread-safe
+        else:
+            print(">>> Unable to append {} to Chat object.".format(message))
 
-        # with self.lock:
-            # self._messages.extend(messages)
+    def get_messages(self, begin, end):
+        return self._messages[begin: end]
 
-    # Remove
-    # def get_all_messages(self):
-        # """ Return all messages in the Chat object.
+    def extend_messages(self, messages):
+        for message in messages:
+            self.append_message(message)
 
-        # The response is a list of all ChatMessage objects in the Chat.
-        # """
+    def save(self, base_dir, file_name=None):
+        if len(self._messages) == 0:
+            print("The chat is empty.")
+            return None
 
-        # with self.lock:
-            # return self._messages
-            
-    # def __repr__(self):
-        # return dict(
-            # ("messages", [message.__repr__() for message in self._messages])
-        # )
+        if file_name is None:
+            now = datetime.datetime.now().time().replace(microsecond = 0).__str__()
+            now = now.replace(":","") # : is not allowed in windows file names.
+            file_name = "chat_session_{}.json".format(now)
+        file_name = os.path.join(base_dir, file_name)
 
-    # def __str__(self):
-        # return "Abstract chat class."
+        while True:
+            try:
+                with open(file_name, 'w') as f:
+                    json.dump(self.__repr__(), f, indent=4)
+            except Exception as e:
+                print(">>> There was a problem with saving the chat object.")
+                print(e)
+
+                if input("Retry? (Y/n)") != "Y":
+                    break
+            else:
+                break
+
+    def __repr__(self):
+        return dict([
+            ("messages", [message.__repr__() for message in self._messages])
+        ]).__str__()
+
+    def __str__(self):
+        return("Chat object containing {} messages. ".format(len(self._messages)))
 
 
 class MockChat(threading.Thread):
@@ -140,7 +157,7 @@ class MockChat(threading.Thread):
 
     Methods:
         start               Start the chat.
-        estimated_duration
+        estimated_duration  Estimated duration of the mock chat.
 
 
     Representation:
@@ -152,20 +169,21 @@ class MockChat(threading.Thread):
     """
 
     index = 0
-    
-    def __init__(self, messages, arch_mess, refresh_rate, speed=1):
+    is_over = threading.Event()
+    has_new_messages = threading.Condition()
+
+    def __init__(self, chat, arch_mess, refresh_rate, speed=1):
         """ A mock chat is an object constructed from a list of ChatMessage
         whose purpose is to re-create the chat thread.
 
         The constructor takes a list of ChatMessage objects and a refresh rate.
         The refresh rate is the frequency at which the chat checks if new
-        messages are available. If speed is an integer different from one, play
+        chat messages are available. If speed is an integer different from one, play
         the chat at speed times the speed.
         """
 
-        Chat.__init__(self)
         threading.Thread.__init__(self, name="Mock chat.")
-        self.messages = messages
+        self.chat = chat
         self._arch_mess = arch_mess
         try:
             self.start_time = dateparser(arch_mess[0].published_at)
@@ -175,16 +193,15 @@ class MockChat(threading.Thread):
             self.speed = speed
         else:
             self.speed = 1
-        self.refresh_rate = refresh_rate    
+        self.refresh_rate = refresh_rate
         self.nbr_messages = len(arch_mess)
-        
+
     def estimated_duration(self):
         """ How long should the mock chat last, given its speed."""
 
-        with self.lock:
-            span = (dateparser(self._arch_mess[-1].published_at)
-                    - dateparser(self._arch_mess[0].published_at)).total_seconds()
-            return span / self.speed
+        span = (dateparser(self._arch_mess[-1].published_at)
+                - dateparser(self._arch_mess[0].published_at)).total_seconds()
+        return span / self.speed
 
     def run(self):
         """ As the time passes, more messages are available in the MockChat.
@@ -204,8 +221,8 @@ class MockChat(threading.Thread):
         while not self.is_over.is_set():
             delta = datetime.datetime.now() - actual_start_time
             delta *= self.speed # Accelerate time
-            
-            old_index = self.index         
+
+            old_index = self.index
             while self.index < self.nbr_messages \
                 and dateparser(self._arch_mess[self.index].published_at) < (self.start_time + delta):
                 self.index += 1
@@ -214,7 +231,7 @@ class MockChat(threading.Thread):
                 self.is_over.set()
 
             if old_index < self.index:
-                self.messages.extend(self._arch_mess[old_index: self.index])
+                self.chat.extend_messages(self._arch_mess[old_index: self.index])
                 with self.has_new_messages:
                     self.has_new_messages.notify_all()
 
@@ -227,7 +244,7 @@ class MockChat(threading.Thread):
         return "Mock Chat which started at {} (at speed {}).".format(
             self.start_time,
             self.speed
-        )  
+        )
 
 
 def mock_chat_from_archive(messages, arch_mess, refresh_rate, speed):
