@@ -22,40 +22,96 @@ import re
 import os
 
 class ChatMessage:
-
     """ A ChatMessage object represents a message in a Chat.
 
     Attributes:
         author              Author of the message.
         published_at        Moment at which the message was published.
         content             Text content of the message.
-        labels              Labels attached by classifiers.
-
-    Representation:
-    A dictionary
-    {
-        "author": str,
-        "publishedAt": str,
-        "textMessageDetails": str
-        "labels": [
-            str
-        ]
-    }
+        labels              A list of labels (strings) attached by classifiers.
     """
 
-    def __init__(self, author, published_at, content, labels=[]):
-        self.author = author
-        self.published_at = published_at # A string like '2018-01-16T16:31:12.000Z'
-        self.content = content
-        self.labels = labels
+    def __init__(self, **kwargs):
+        """ The __init__ function takes only keyword arguments. There are two
+        possible combinations:
 
-    def __repr__(self):
+        1) corresponding to the dictionary ChatMessage.__dict__:
+        {
+            "author": str,
+            "published_at": str,
+            "content": str
+            "labels": [
+                str
+            ]
+        }
+
+        2) corresponding to the dictionary which represents the snippet dict of
+        a "youtube#liveChatMessage" ressource in a youtube live chat:
+        {
+            "type": "textMessageEvent",
+            "liveChatId": "Cg0KC1lxVHZfaC1CempZ",
+            "authorChannelId": "UC7aeSVebvKLp4o5MLtq5LZg",
+            "publishedAt": "2018-01-09T21:52:33.028Z",
+            "hasDisplayContent": true,
+            "displayMessage": "Allo",
+            "textMessageDetails": {
+                "messageText": "Allo"
+            }
+        }
+
+        Raises a RuntimeError if the author, publication time or content is missing.
+        """
+
+        if "authorChannelId" in kwargs:
+            self.author = kwargs["authorChannelId"]
+        elif "author" in kwargs:
+            self.author = kwargs["author"]
+        else:
+            raise RuntimeError("No author provided.")
+
+        if "publishedAt" in kwargs:
+            self.published_at = kwargs["publishedAt"]
+        elif "published_at" in kwargs:
+            self.published_at = kwargs["published_at"]
+        else:
+            raise RuntimeError("No publication moment provided.")
+
+        if "textMessageDetails" in kwargs:
+            self.content = kwargs["textMessageDetails"]["messageText"]
+        elif "content" in kwargs:
+            self.content = kwargs["content"]
+        else:
+            raise RuntimeError("No content provided.")
+
+        self.labels = kwargs.get("labels", [])
+
+    def add_label(self, label):
+        """ Add a label (a string) to the chat message. """
+
+        self.labels.append(label)
+
+    def as_dict(self):
+        """ Returns the following dictionary:
+         {
+            "author": str,
+            "published_at": str,
+            "content": str
+            "labels": [
+                str
+            ]
+        }
+        """
+        
         return dict([
             ("author", self.author),
-            ("publishedAt", self.published_at),
-            ("textMessageDetails", self.content),
+            ("published_at", self.published_at),
+            ("content", self.content),
             ("labels", self.labels)
-        ]).__str__()
+        ])
+        
+    def __repr__(self):
+        """ Returns self.as_dict(). """
+        return self.as_dict().__str__()
 
     def __str__(self):
         # Try to know when the message was published
@@ -65,7 +121,7 @@ class ChatMessage:
             published_time = self.published_at
 
         return "{} {:15s} at {}: {}".format(
-            self.labels,
+            ", ".join(self.labels),
             self.author,
             published_time,
             self.content
@@ -83,17 +139,12 @@ class Chat:
         get_messages        Return chat messages
         append_messages     Append messages to chat object
         save                Save Chat object to JSON format using its representation
-
-    Representation:
-    {
-        "messages": [
-            ChatMessage
-        ]
-    }
     """
 
-    _messages = []
     lock = threading.RLock()
+
+    def __init__(self):
+        self._messages = []
 
     def append_message(self, message):
         if isinstance(message, ChatMessage):
@@ -108,10 +159,15 @@ class Chat:
         for message in messages:
             self.append_message(message)
 
-    def save(self, base_dir, file_name=None):
-        if len(self._messages) == 0:
-            print("The chat is empty.")
-            return None
+    def save_to_json(self, base_dir, file_name=None):
+        """ Save to file named file_name in base_dir. If file_name=None (default)
+        the file name will be 'chat_session_hhmmss.json'.
+        
+        It is always a good idea to test this function BEFORE running the actual
+        chat session to make sure that the data will be saved after the session.
+        For example, one could do
+        Chat().save_to_json(CURRENT_SAVE_DIR, file_name="test_save.txt")
+        """
 
         if file_name is None:
             now = datetime.datetime.now().time().replace(microsecond = 0).__str__()
@@ -119,18 +175,14 @@ class Chat:
             file_name = "chat_session_{}.json".format(now)
         file_name = os.path.join(base_dir, file_name)
 
-        while True:
-            try:
-                with open(file_name, 'w') as f:
-                    json.dump(self.__repr__(), f, indent=4)
-            except Exception as e:
-                print(">>> There was a problem with saving the chat object.")
-                print(e)
+        json_object = [message.as_dict() for message in self._messages]
 
-                if input("Retry? (Y/n)") != "Y":
-                    break
-            else:
-                break
+        try:
+            with open(file_name, 'w') as f:
+                json.dump(json_object, f, indent=4)
+        except Exception as e:
+            print(">>> There was a problem with saving the chat object.")
+            print(e)
 
     def __repr__(self):
         return dict([
@@ -158,14 +210,6 @@ class MockChat(threading.Thread):
     Methods:
         start               Start the chat.
         estimated_duration  Estimated duration of the mock chat.
-
-
-    Representation:
-    {
-        "messages": [
-            ChatMessage
-        ]
-    }
     """
 
     index = 0
@@ -247,20 +291,23 @@ class MockChat(threading.Thread):
         )
 
 
-def mock_chat_from_archive(messages, arch_mess, refresh_rate, speed):
+def mock_chat_from_file(file, chat, refresh_rate, **kwargs):
+    """ Build a MockChat from a file. Here file contains a json-loadable list
+    of chat messages (comming from youtube responses or ChatMessage.as_dict().
+    """
+    
+    with open(file, 'r') as f:
+        raw_messages = json.load(f)
+        
+    if "amount" in kwargs:
+        raw_messages = raw_messages[:kwargs["amount"]]
+    
+    messages = [ChatMessage(**dict) for dict in raw_messages]
+    
     return MockChat(
+        chat,
         messages,
-        [chat_message_from_dict(mess) for mess in arch_mess],
         refresh_rate,
-        speed
+        kwargs.get("speed", 1)
     )
-
-def chat_message_from_dict(dic):
-    """ Return a ChatMessage, given a representation of a ChatMessage. """
-
-    return ChatMessage(
-        dic.get("author", "???"),
-        dic.get("publishedAt", "???"),
-        dic.get("textMessageDetails", "???"),
-        dic.get("labels","")
-    )
+    

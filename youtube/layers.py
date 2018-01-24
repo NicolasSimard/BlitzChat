@@ -39,18 +39,18 @@ class Layer(threading.Thread):
         self.last_action()
         print(">>> Closing Layer {}".format(self.name))
 
-    def __str__(self):
-        return "Abstract Layer."
+    def __repr__(self):
+        return "Layer {}.".format(self.name)
 
 
 class Question(Layer):
     def __init__(self, chat, source):
-        super().__init__(chat, source, name = "naive question detector.")
+        super().__init__(chat, source, name = "naive question detector")
         self.q_pattern = re.compile(r'\?')
 
     def action(self, message):
         if self.q_pattern.search(message.content):
-            message.labels += "Q "
+            message.add_label("Q")
 
 
 class Printer(Layer):
@@ -58,10 +58,7 @@ class Printer(Layer):
         super().__init__(chat, source, name = "printer")
 
     def action(self, message):
-        print(message.__str__())
-
-    def __str__(self):
-        return "Layer {}".format(self.name)
+        print(message)
 
 
 class LiveBackUp(Layer):
