@@ -1,12 +1,12 @@
-""" chat module defines all the classes and auxialry functions to work with
+""" chat module defines all the classes and auxilary functions to work with
 youtube chats.
 
 The classes are:
 
     ChatMessage             Represents a chat message
     Chat                    Represents a general chat, with its messages
-    LiveChat(Chat, Thread)  Represents a chat associated with a youtube service
-    MockChat(Chat, Thread)  Represents a chat constructed from a file
+    LiveChat(Thread)        Represents a chat associated with a youtube service
+    MockChat(Thread)        Represents a chat constructed from a file
 
 The auxilary functions are:
 
@@ -20,6 +20,18 @@ from dateutil.parser import parse as dateparser
 import json
 import re
 import os
+
+LIVECHAT_BACKUP_DIR = "livechat-backup"
+
+def timestamp():
+    now = datetime.datetime.now().time().replace(microsecond = 0).__str__()
+    now = now.replace(":","") # : is not allowed in windows file names.
+    return now
+
+def datetimestamp():
+    now = datetime.datetime.now().replace(microsecond = 0).__str__()
+    now = now.replace(":","").replace(" ","_") # : is not allowed in windows file names.
+    return now
 
 class ChatMessage:
     """ A ChatMessage object represents a message in a Chat.
@@ -129,7 +141,7 @@ class ChatMessage:
 
 
 class Chat:
-    """ A Chat object represents a collention of messages which can vary in time.
+    """ A Chat object represents a collection of messages which can vary in time.
 
     Attributes:
         lock                A threading.Lock object to lock the object
@@ -137,8 +149,8 @@ class Chat:
     Methods:
         append_messages     Append messages to the object's messages
         get_messages        Return chat messages
-        append_messages     Append messages to chat object
-        save                Save Chat object to JSON format using its representation
+        extend_messages     Extend the list of messages
+        save_to_json        Save Chat object to JSON format using its representation
     """
 
     lock = threading.RLock()
@@ -293,6 +305,7 @@ class LiveChat(threading.Thread):
                             waiting threads when new messages are available.
         is_over             A threading.Event object that is set when the chat
                             is over.
+        index               The index of the last available chat message.
 
     Methods:
         start               Start refreshing the chat via the youtube service.
@@ -304,11 +317,20 @@ class LiveChat(threading.Thread):
 
     _buffer = []
     _bkp_count = 0
-    _bkp_file_name_template = ".chat_ressource_backup_{}.bkp"
+    _bkp_file_name_template = "chat_ressource_backup_{}-{}.bkp"
     _save_file_name_template = "chat_ressource_{}.json"
+    _timestamp = timestamp()
+    _bkp_dir = os.path.join(LIVECHAT_BACKUP_DIR, datetimestamp())
 
     def __init__(self, youtube, id, chat, refresh_rate, **kwargs):
-        """ A LiveChat
+        """ A LiveChat object object is initialized with
+        1) An authenticated youtube service (youtube)
+        2) The id of the live chat (id)
+        3) A Chat object in which the chat messages are put (chat)
+        4) A refresh rate (refresh_rate)
+
+        The optionnal parameter buffer_size (default 50) controls the size of
+        the internal buffer size.
         """
 
         threading.Thread.__init__(self, name="Live chat.")
@@ -316,10 +338,28 @@ class LiveChat(threading.Thread):
         self.youtube = youtube
         self.id = id
         self.refresh_rate = refresh_rate
-        self.buffer_size = kwargs.get("buffer_size", 5)
+
+        try:
+            os.mkdir(self._bkp_dir)
+        except FileExistsError as e:
+            pass
+        else:
+            print(">>> Directory {} created.".format(self._bkp_dir))
+        self.buffer_size = kwargs.get("buffer_size", 50)
 
     def dump_buffer_to_json(self):
-        file_name = self._bkp_file_name_template.format(self._bkp_count)
+        """ Every LiveChat object holds a buffer with all liveChatMessage
+        responses it recieved from youtube. This function dumps the buffer to a
+        json file (automatically named). After the live chat is over, those
+        backup files can be combined into a single chat ressource by calling
+        the save_to_json method.
+        """
+
+        file_name = self._bkp_file_name_template.format(
+            self._timestamp,
+            self._bkp_count
+        )
+        file_name = os.path.join(self._bkp_dir, file_name)
 
         try:
             with open(file_name, 'w') as f:
@@ -332,29 +372,36 @@ class LiveChat(threading.Thread):
             self._bkp_count += 1
 
     def save_to_json(self, base_dir, file_name=None):
-        """ Save to file named 'chat_ressource.json' in base_dir.
+        """ Save to file named 'chat_ressource_hhmmss.json' in base_dir. This
+        method collects all backups made during the live chat into a single file.
 
         It is always a good idea to test this function BEFORE running the actual
         chat session to make sure that the data will be saved after the session.
         For example, one could do
         LiveChat().save_to_json(CURRENT_SAVE_DIR, file_name="test_save.txt")
+
+        If, for some reason, the program crashed and the LiveChat doesn't exist
+        anymore, the backups can be "manually" combined using the
+        combine_live_chat_backups_to_json function in this module.
         """
 
         # Collecting the backups into a single list called json_object
         json_object = []
         for n in range(self._bkp_count):
+            bkp_file_name = os.path.join(
+                self._bkp_dir,
+                self._bkp_file_name_template.format(self._timestamp, n)
+            )
             try:
-                with open(self._bkp_file_name_template.format(n), 'r') as f:
+                with open(bkp_file_name, 'r') as f:
                     json_object.extend(json.load(f))
             except Exception as e:
-                print(">>> There was a problem with loading the {}th backup.".format(n))
+                print(">>> There was a problem with loading the file {}.".format(file))
                 print(e)
 
         # Preparing the file_name
         if file_name is None:
-            now = datetime.datetime.now().time().replace(microsecond = 0).__str__()
-            now = now.replace(":","") # : is not allowed in windows file names.
-            file_name = self._save_file_name_template.format(now)
+            file_name = self._save_file_name_template.format(timestamp())
         file_name = os.path.join(base_dir, file_name)
 
         # Dump json_object
@@ -362,8 +409,7 @@ class LiveChat(threading.Thread):
             with open(file_name, 'w') as f:
                 json.dump(json_object, f, indent=4)
         except Exception as e:
-            print(">>> There was a problem with saving the chat object.")
-            print(e)
+            print(">>> There was a problem with saving the live chat object.")
 
 
     def run(self):
@@ -379,7 +425,7 @@ class LiveChat(threading.Thread):
             part="snippet"
         )
 
-        while request is not None and not self.is_over.is_set(): #and input("Stop?") != "Y": #VERB
+        while request is not None and not self.is_over.is_set():
             try:
                 response = request.execute()
             except HttpError as e:
@@ -394,7 +440,7 @@ class LiveChat(threading.Thread):
                     .format(e.resp.status, e_message)
                 )
                 print(">>> Closing the live chat.")
-                break 
+                break
             else:
                 if len(response["items"]) > 0:
                     message_ressource = [item["snippet"] for item in response["items"]]
@@ -416,14 +462,17 @@ class LiveChat(threading.Thread):
                 time.sleep(self.refresh_rate)
         self.dump_buffer_to_json()
         self.is_over.set()
-        print(">>> The live chat is over.")   
+        print(">>> The live chat is over.")
 
     def __repr__(self):
         return "Live Chat with id {}.".format(self.id)
 
+
 def mock_chat_from_file(file, chat, refresh_rate, **kwargs):
     """ Build a MockChat from a file. Here file contains a json-loadable list
     of chat messages (comming from youtube responses or ChatMessage.as_dict().
+    This is the format returned by either LiveChat().save_to_json or
+    Chat().save_to_json.
     """
 
     with open(file, 'r') as f:
@@ -440,14 +489,10 @@ def mock_chat_from_file(file, chat, refresh_rate, **kwargs):
         refresh_rate,
         kwargs.get("speed", 1)
     )
-    
-def combine_live_chat_backups_to_json(files, base_dir, file_name=None):
-    """ Save to file named 'chat_ressource_hhmmss.json' in base_dir.
 
-    It is always a good idea to test this function BEFORE running the actual
-    chat session to make sure that the data will be saved after the session.
-    For example, one could do
-    live_chat.save_to_json(CURRENT_SAVE_DIR, file_name="test_save.txt")
+def combine_live_chat_backups_to_json(files, base_dir, file_name=None):
+    """ Combine the files in the list files into a single file named
+    'chat_ressource_hhmmss.json' in base_dir. This function
     """
 
     # Collecting the backups into a single list called json_object
@@ -457,15 +502,13 @@ def combine_live_chat_backups_to_json(files, base_dir, file_name=None):
             with open(file, 'r') as f:
                 json_object.extend(json.load(f))
         except Exception as e:
-            print(">>> There was a problem with loading the {}th backup.".format(n))
+            print(">>> There was a problem with loading the file {}.".format(file))
             print(e)
 
     # Preparing the file_name
-    if file_name is None:
-        now = datetime.datetime.now().time().replace(microsecond = 0).__str__()
-        now = now.replace(":","") # : is not allowed in windows file names.
-        file_name = "chat_ressource_{}.json".format(now)
-    file_name = os.path.join(base_dir, file_name)
+        if file_name is None:
+            file_name = "chat_ressource_{}.json".format(timestamp())
+        file_name = os.path.join(base_dir, file_name)
 
     # Dump json_object
     try:
