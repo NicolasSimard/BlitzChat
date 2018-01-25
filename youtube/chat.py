@@ -24,11 +24,16 @@ import os
 LIVECHAT_BACKUP_DIR = "livechat-backup"
 
 def timestamp():
+    """" Return a string of the form hhmmss representing the time now. """
+    
     now = datetime.datetime.now().time().replace(microsecond = 0).__str__()
     now = now.replace(":","") # : is not allowed in windows file names.
     return now
 
 def datetimestamp():
+    """" Return a string of the form yyyy-mm-dd_hhmmss representing the date
+    and time now. """
+
     now = datetime.datetime.now().replace(microsecond = 0).__str__()
     now = now.replace(":","").replace(" ","_") # : is not allowed in windows file names.
     return now
@@ -41,6 +46,11 @@ class ChatMessage:
         published_at        Moment at which the message was published.
         content             Text content of the message.
         labels              A list of labels (strings) attached by classifiers.
+    
+    Methods:
+        add_label           Add a label (a string) to the message
+        as_dict             Return a dictionary representing the message
+        
     """
 
     def __init__(self, **kwargs):
@@ -122,7 +132,8 @@ class ChatMessage:
         ])
 
     def __repr__(self):
-        """ Returns self.as_dict(). """
+        """ Returns self.as_dict().__str__(). """
+        
         return self.as_dict().__str__()
 
     def __str__(self):
@@ -159,15 +170,23 @@ class Chat:
         self._messages = []
 
     def append_message(self, message):
+        """ Append ChatMessage object to the list of messages in the chat. """
+        
         if isinstance(message, ChatMessage):
             self._messages.append(message) # append is thread-safe
         else:
             print(">>> Unable to append {} to Chat object.".format(message))
 
     def get_messages(self, begin, end):
+        """ Returns the messages between begin and end, as in
+        messages[begin: end].
+        """
+    
         return self._messages[begin: end]
 
     def extend_messages(self, messages):
+        """ Extend the messages with a list of ChatMessage objects.  """
+        
         for message in messages:
             self.append_message(message)
 
@@ -182,19 +201,22 @@ class Chat:
         """
 
         if file_name is None:
-            now = datetime.datetime.now().time().replace(microsecond = 0).__str__()
-            now = now.replace(":","") # : is not allowed in windows file names.
-            file_name = "chat_session_{}.json".format(now)
+            file_name = "chat_session_{}.json".format(timestamp())
         file_name = os.path.join(base_dir, file_name)
 
         json_object = [message.as_dict() for message in self._messages]
 
-        try:
-            with open(file_name, 'w') as f:
-                json.dump(json_object, f, indent=4)
-        except Exception as e:
-            print(">>> There was a problem with saving the chat object.")
-            print(e)
+        if len(json_object) == 0:
+            print(">>> Chat had nothing to save.")
+        else:
+            try:
+                with open(file_name, 'w') as f:
+                    json.dump(json_object, f, indent=4)
+            except Exception as e:
+                print(">>> There was a problem with saving the chat object.")
+                print(e)
+            else:
+                print(">>> Chat succesfully saved.")
 
     def __repr__(self):
         return dict([
@@ -217,6 +239,7 @@ class MockChat(threading.Thread):
         start_time          The time at which the chat started. This is the
                             moment where the first message of the chat was posted.
         refresh_rate        The refreshing rate of the Chat.
+        index               The index of the last available chat message.
 
     Methods:
         start               Start the chat.
@@ -243,7 +266,7 @@ class MockChat(threading.Thread):
         try:
             self.start_time = dateparser(arch_mess[0].published_at)
         except IndexError:
-            print("No messages in MockChat.")
+            print(">>> No messages in MockChat.")
         if isinstance(speed, int):
             self.speed = speed
         else:
@@ -399,18 +422,22 @@ class LiveChat(threading.Thread):
                 print(">>> There was a problem with loading the file {}.".format(file))
                 print(e)
 
-        # Preparing the file_name
-        if file_name is None:
-            file_name = self._save_file_name_template.format(timestamp())
-        file_name = os.path.join(base_dir, file_name)
+        if len(json_object) == 0:
+            print(">>> Live chat had nothing to save.")
+        else:
+            # Preparing the file_name
+            if file_name is None:
+                file_name = self._save_file_name_template.format(timestamp())
+            file_name = os.path.join(base_dir, file_name)
 
-        # Dump json_object
-        try:
-            with open(file_name, 'w') as f:
-                json.dump(json_object, f, indent=4)
-        except Exception as e:
-            print(">>> There was a problem with saving the live chat object.")
-
+            # Dump json_object
+            try:
+                with open(file_name, 'w') as f:
+                    json.dump(json_object, f, indent=4)
+            except Exception as e:
+                print(">>> There was a problem with saving the live chat object.")
+            else:
+                print(">>> Live chat succesfully saved.")
 
     def run(self):
         """ As the time passes, more messages are available on youtube.
@@ -470,9 +497,8 @@ class LiveChat(threading.Thread):
 
 def mock_chat_from_file(file, chat, refresh_rate, **kwargs):
     """ Build a MockChat from a file. Here file contains a json-loadable list
-    of chat messages (comming from youtube responses or ChatMessage.as_dict().
-    This is the format returned by either LiveChat().save_to_json or
-    Chat().save_to_json.
+    of chat messages (comming from a file returned by Chat().save_to_json or
+    LiveChat().save_to_json).
     """
 
     with open(file, 'r') as f:
