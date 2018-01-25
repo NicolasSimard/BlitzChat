@@ -18,7 +18,7 @@ ARCHIVE_DIR = os.path.join(BASE_DIR, "drive-archive")
 CURRENT_SAVE_DIR = os.path.join(ARCHIVE_DIR, "{}".format(TODAY))
 
 # The source of the messages for the mock chat
-MESSAGE_SOURCE = os.path.join(ARCHIVE_DIR, "2018-01-24\\chat_ressource_230801.json")
+MESSAGE_SOURCE = os.path.join(ARCHIVE_DIR, "2017-12-12\\chat_session_0.json")
 REFRESH_RATE = 1
 
 if __name__ == "__main__":
@@ -29,9 +29,6 @@ if __name__ == "__main__":
         pass
     else:
         print(">>> Directory {} created.".format(CURRENT_SAVE_DIR))
-
-    # Just making sure that the saving method works
-    Chat().save_to_json(CURRENT_SAVE_DIR, file_name="test_save_delete_me.txt")
         
     chat = Chat()
     mock_chat = mock_chat_from_file(
@@ -46,13 +43,20 @@ if __name__ == "__main__":
     print(mock_chat)
     print("Should last {} seconds.".format(mock_chat.estimated_duration()))
     
-    mock_chat.start()
-    question_label.start()
-    printer.start()
+    layers_list = [
+        mock_chat,
+        question_label,
+        printer
+    ]
 
-    mock_chat.join()
-    question_label.join()
-    printer.join()
-
+    # Start the threads
+    for layer in layers_list:
+        layer.start()
+    
+    # Wait for all threads to be over
+    for layer in layers_list:
+        layer.join()
+    
+    # Save the current session
     chat.save_to_json(CURRENT_SAVE_DIR)
 

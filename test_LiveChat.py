@@ -85,5 +85,4 @@ if __name__ == "__main__":
     # Save the current session
     chat_messages.save_to_json(CURRENT_SAVE_DIR)
     live_chat.save_to_json(CURRENT_SAVE_DIR)
-    print("Done")
 
