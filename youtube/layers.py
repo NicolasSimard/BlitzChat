@@ -3,6 +3,18 @@ import os
 import json
 import re
 
+#TODO: A layer to convert the time from UTC to local. 
+#NOTE:  To convert the string s='2018-01-16T16:31:12.000Z' to a datetime
+#       object: dt = dateutil.parser.parse(s). The tzinfo will be tzutc()
+#       Given such a UTC time dt, you can convert it to a local time:
+#       >>> dt = dateutil.parser.parse(s); dt
+#       datetime.datetime(2018, 1, 16, 16, 31, 12, tzinfo=tzutc())
+#       >>> dt.astimezone(dateutil.tz.tzlocal())
+#       datetime.datetime(2018, 1, 16, 11, 31, 12, tzinfo=tzlocal())
+#TODO: A layer to replace th eauthorChannelId with something like 'User n'
+#TODO: A layer to detect exam questions
+
+
 class Layer(threading.Thread):
     """ Defines an abstract layer in the processing pipe of chat messages.
     """
@@ -44,10 +56,9 @@ class Layer(threading.Thread):
 class Question(Layer):
     def __init__(self, chat, source):
         super().__init__(chat, source, name = "naive question detector")
-        self.q_pattern = re.compile(r'\?')
 
     def action(self, message):
-        if self.q_pattern.search(message.content):
+        if "?" in message.content:
             message.add_label("Q")
 
 
