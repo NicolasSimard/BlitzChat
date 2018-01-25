@@ -10,11 +10,12 @@ class Layer(threading.Thread):
     has_new_messages = threading.Condition()
     index = 0
 
-    def __init__(self, chat, source, name):
+    def __init__(self, chat, source, name, **kwargs):
         super().__init__(name=name)
         self.source = source
         self.is_over = source.is_over
         self.chat = chat
+        self.timeout = kwargs.get("timeout", 5)
 
     def action(self, message):
         print("The Layer.action method should be overriden.")
@@ -25,17 +26,14 @@ class Layer(threading.Thread):
     def run(self):
         while not self.source.is_over.is_set():
             with self.source.has_new_messages:
-                self.source.has_new_messages.wait()
-                new_messages = self.chat.get_messages(self.index, self.source.index)
-
-                for message in new_messages:
-                    self.action(message)
-
-                with self.has_new_messages:
-                    self.has_new_messages.notify_all()
-
-                self.index = self.source.index
-
+                has_been_notified = self.source.has_new_messages.wait(self.timeout)
+                if has_been_notified:
+                    new_messages = self.chat.get_messages(self.index, self.source.index)
+                    for message in new_messages:
+                        self.action(message)
+                    self.index = self.source.index
+                    with self.has_new_messages:
+                        self.has_new_messages.notify_all()
         self.last_action()
         print(">>> Closing Layer {}".format(self.name))
 
