@@ -18,7 +18,7 @@ ARCHIVE_DIR = os.path.join(BASE_DIR, "drive-archive")
 CURRENT_SAVE_DIR = os.path.join(ARCHIVE_DIR, "{}".format(TODAY))
 
 # The source of the messages for the mock chat
-MESSAGE_SOURCE = os.path.join(ARCHIVE_DIR, "2017-12-12\\chat_session_0.json")
+MESSAGE_SOURCE = os.path.join(ARCHIVE_DIR, "2018-01-24\\chat_ressource_230801.json")
 REFRESH_RATE = 1
 
 if __name__ == "__main__":
@@ -38,8 +38,7 @@ if __name__ == "__main__":
         MESSAGE_SOURCE,
         chat,
         REFRESH_RATE,
-        speed=50,
-        amount=10
+        speed=50
     )
     question_label = layers.Question(chat, mock_chat)
     printer = layers.Printer(chat, question_label)
