@@ -1,15 +1,22 @@
 from youtube.chat import *
 import youtube.layers as layers
+from youtube import tools
 import json
 import time
 import threading
 import os
 import datetime
 
-TODAY = datetime.date.today()
-
 # The absolute of the directory where the script lives
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+TODAY = datetime.date.today()
+
+# The location of the client_secrets file
+CLIENT_SECRETS_FILE = os.path.join(BASE_DIR, "client_secrets.json")
+
+# the base name of the storage file attached to the oauth2 protocol
+STORAGE_FILE_NAME = "test"
 
 # The directory where the chats are archived
 ARCHIVE_DIR = os.path.join(BASE_DIR, "drive-archive")
@@ -37,7 +44,15 @@ if __name__ == "__main__":
         REFRESH_RATE,
         speed=50
     )
-    question_label = layers.Question(chat, mock_chat)
+    channel_title = layers.ChannelTitle(
+        chat,
+        mock_chat,
+        tools.get_authenticated_service(
+            CLIENT_SECRETS_FILE,
+            STORAGE_FILE_NAME
+        )
+    )
+    question_label = layers.Question(chat, channel_title)
     printer = layers.Printer(chat, question_label)
     
     print(mock_chat)
@@ -45,6 +60,7 @@ if __name__ == "__main__":
     
     layers_list = [
         mock_chat,
+        channel_title,
         question_label,
         printer
     ]
@@ -58,5 +74,5 @@ if __name__ == "__main__":
         layer.join()
     
     # Save the current session
-    chat.save_to_json(CURRENT_SAVE_DIR)
+    # chat.save_to_json(CURRENT_SAVE_DIR)
 
