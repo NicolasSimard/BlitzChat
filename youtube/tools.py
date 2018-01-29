@@ -22,3 +22,22 @@ def get_authenticated_service(client_secrets_file, storage_path, args = None):
         credentials = run_flow(flow, storage, args)
 
     return build("youtube", "v3", http=credentials.authorize(httplib2.Http()))
+
+def get_channel_snippet_by_id(youtube, id):
+    try:
+        response = youtube.channels().list(
+            part="snippet",
+            id=id
+        ).execute()
+    except HttpError as e:
+        print(e)
+
+    if len(response["items"]) == 0:
+        return None
+    else:
+        return response["items"][0]["snippet"]
+
+def get_channel_title_by_channel_id(youtube, id):
+    channel = get_channel_snippet_by_id(youtube, id)
+    if channel is not None:
+        return channel.get("title", "Unknown")
