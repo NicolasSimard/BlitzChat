@@ -2,6 +2,7 @@ import threading
 import os
 import json
 import re
+from youtube import tools
 
 #TODO: A layer to convert the time from UTC to local. 
 #NOTE:  To convert the string s='2018-01-16T16:31:12.000Z' to a datetime
@@ -60,6 +61,27 @@ class Question(Layer):
     def action(self, message):
         if "?" in message.content:
             message.add_label("Q")
+            
+          
+class ChannelTitle(Layer):
+    """ This layer changes the author's youtube channel ID by the title of the 
+    his channel ID. Note that this layer uses the Youtube Data API to retrieve
+    the title. """
+
+    def __init__(self, chat, source, youtube):
+        """ Define the layer as the other ones (i.e. with a Chat object and a
+        source, but with the extra parameter is a youtube parameter. """
+        
+        super().__init__(chat, source, name = "Channel id to channel title")
+        self.youtube = youtube
+
+    def action(self, message):
+        author = tools.get_channel_title_by_channel_id(
+            self.youtube,
+            message.author
+        )
+        if author is not None:
+            message.author = author
 
 
 class Printer(Layer):
