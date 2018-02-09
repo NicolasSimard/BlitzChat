@@ -28,14 +28,14 @@ LABELS = [
 # Load the ressource
 with open(RESSOURCE_FILE, 'r') as f:
     ressource = json.load(f)
-
+    
 # Create the (unlabeled) dataset out of the ressource
 data = pd.Series(
     [mess['content'] for mess in ressource],
     name='content'
 )
 
-# Label the elements of the dataset
+# # Label the elements of the dataset
 # labels   = pd.Series(
     # [1 if mess['classification'][2] == 1 else 0 for mess in ressource],
     # name="category"
@@ -50,5 +50,4 @@ for message in data:
         label = 0
     labels.append(label)
 
-data.to_csv(os.path.join(DATASET_DIR, "data.csv"))
-pd.Series(labels, name='labels').to_csv(os.path.join(DATASET_DIR, "labels.csv"))
+pd.concat([data, pd.Series(labels, name='labels')], axis=1).to_csv(os.path.join(DATASET_DIR, "full.csv"))
