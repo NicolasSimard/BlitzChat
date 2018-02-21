@@ -24,6 +24,7 @@ def list_of_choices(L):
             except IndexError:
                 print("Invalid index.")
 
+# Use ..\\config.ini to see where the storage is and replace storage by identity.                
 def get_authenticated_service(client_secrets_file, storage_path, args = None):
     """Get read only authenticated youtube service."""
 
