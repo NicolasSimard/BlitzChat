@@ -51,8 +51,7 @@ class ChatMessage:
     
     Methods:
         add_label           Add a label (a string) to the message
-        as_dict             Return a dictionary representing the message
-        
+        as_dict             Return a dictionary representing the message        
     """
 
     def __init__(self, **kwargs):
@@ -126,12 +125,12 @@ class ChatMessage:
         }
         """
 
-        return dict([
-            ("author", self.author),
-            ("published_at", self.published_at),
-            ("content", self.content),
-            ("labels", self.labels)
-        ])
+        return {
+            'author': self.author,
+            'published_at': self.published_at,
+            'content': self.content,
+            'labels': self.labels
+        }
 
     def __repr__(self):
         """ Returns self.as_dict().__str__(). """
@@ -402,9 +401,9 @@ class LiveChat(threading.Thread):
 
         # Collecting the backups into a single list called json_object
         json_object = []
-        for file_name in self._bkp_file_paths:
+        for file in self._bkp_file_paths:
             try:
-                with open(file_name, 'r') as f:
+                with open(file, 'r') as f:
                     json_object.extend(json.load(f))
             except Exception as e:
                 print(">>> There was a problem with loading the file {}.".format(file))
