@@ -30,16 +30,20 @@ client = get_authenticated_service(
 
 # Choose an active live broadcast
 # Method 1:
+# print(">>> Looking for active live broadcasts of authenticated client.")
 # livebroadcast = get_active_livebroadcast(client)
 
 # Method 2:
-# livebroadcast = livebroadcast_from_id(client, 'Xtfdi6el4yE')
+print(">>> Looking for a live broadcasts by id.")
+livebroadcast = livebroadcast_from_id(client, 'Xtfdi6el4yE')
 
 # method 3:
-livebroadcast = search_active_livebroadcast(client, BLITZ_CHANNEL_ID)
+# print(">>> Looking for active live broadcasts on the Blitz Channel.")
+# livebroadcast = search_active_livebroadcast(client, BLITZ_CHANNEL_ID)
 if livebroadcast is None:
-    exit(">>> No active live broadcasts.")
-print(livebroadcast)
+    exit(">>> No active live broadcasts found.")
+else:
+    print(livebroadcast)
 
 filter = MessageFilter(target=Printer())
 filter.add_filter(get_username(client))
