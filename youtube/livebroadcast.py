@@ -46,7 +46,8 @@ class LiveBroadcast:
 
     @property
     def livechat_id(self):
-        return self.ressource['snippet']['liveChatId']
+        return self.ressource['snippet'].get('liveChatId', None)
+            
 
     def get_livechat(self, chat):
         """ Return the associated LiveChat object. """
