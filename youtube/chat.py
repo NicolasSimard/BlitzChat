@@ -165,17 +165,11 @@ class Chat:
     """
 
     lock = threading.RLock()
-
-    def __init__(self):
-        self._messages = []
-
-    def append_message(self, message):
-        """ Append ChatMessage object to the list of messages in the chat. """
-        
-        if isinstance(message, ChatMessage):
-            self._messages.append(message) # append is thread-safe
-        else:
-            print(">>> Unable to append {} to Chat object.".format(message))
+    _messages = []
+    filters = []
+    
+    def __init__(self, print_messages=True):
+        self.print_messages = print_messages       
 
     def get_messages(self, begin, end):
         """ Returns the messages between begin and end, as in
@@ -187,9 +181,21 @@ class Chat:
     def extend_messages(self, messages):
         """ Extend the messages with a list of ChatMessage objects.  """
         
+        filtered = []
         for message in messages:
-            self.append_message(message)
+            if isinstance(message, ChatMessage):
+                filtered.append(message)
+                # Apply the filters
+                for filter in self.filters: filter(filtered[-1])
+                # Maybe print the filtered message
+                if self.print_messages: print(filtered[-1])
+            else:
+                print(">>> Unable to append {} to Chat object.".format(message))
+        self._messages.extend(filtered)
 
+    def add_filter(self, f):
+        self.filters.append(f)
+            
     def save_to_json(self, base_dir, file_name=None):
         """ Save to file named file_name in base_dir. If file_name=None (default)
         the file name will be 'chat_session_hhmmss.json'.
@@ -217,6 +223,13 @@ class Chat:
                 print(e)
             else:
                 print(">>> Chat succesfully saved.")
+
+    def save_pretty_chat(self, file_name):
+        """ Save to file_name in human readable format. """
+
+        s = '\n'.join([str(mess) for mess in self._messages])
+        with open(file_name, 'w', encoding='utf-8') as f:
+            f.write(s)
 
     def __repr__(self):
         return dict([
