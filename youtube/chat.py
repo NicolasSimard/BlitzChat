@@ -489,26 +489,38 @@ def mock_chat_from_file(file, chat, refresh_rate, **kwargs):
         kwargs.get("speed", 1)
     )
 
-def combine_live_chat_backups_to_json(files, base_dir, file_name=None):
-    """ Combine the files in the list files into a single file named
-    'chat_ressource_hhmmss.json' in base_dir. This function
+def combine_liveChatMessage_ressources(files):
+    """ Combine the lists of youtube liveChatMessage ressources in the files 
+    into a single list and return the list.
     """
 
     # Collecting the backups into a single list called json_object
-    json_object = []
+    messages = []
     for file in files:
         try:
             with open(file, 'r') as f:
-                json_object.extend(json.load(f))
+                new_messages = json.load(f)
         except Exception as e:
             print(">>> There was a problem with loading the file {}.".format(file))
             print(e)
-
-    # Preparing the file_name
-        if file_name is None:
-            file_name = "chat_ressource_{}.json".format(timestamp())
-        file_name = os.path.join(base_dir, file_name)
-
+        else:
+            # Keep only the messages not already in messages
+            new_messages = [mess for mess in new_messages if mess not in messages]
+            messages.extend(new_messages)
+    
+    # Sort according to time
+    messages = sorted(messages, key=(lambda mess: dateparser(mess.get("publishedAt"))))
+    
+    return messages
+        
+def combine_live_chat_backups_in_dir(dir, file_name):
+    """ Combines all the live chat backups in the directory dir and saves it
+    in file_name (as a json object).
+    """
+    
+    files = [os.path.join(dir, file) for file in os.listdir(dir)]
+    json_object = combine_liveChatMessage_ressources(files)
+    
     # Dump json_object
     try:
         with open(file_name, 'w') as f:
@@ -516,3 +528,6 @@ def combine_live_chat_backups_to_json(files, base_dir, file_name=None):
     except Exception as e:
         print(">>> There was a problem with saving the chat object.")
         print(e)
+    print(">>> Succesfully saved to ressource to {}.".format(file_name))
+ 
+       
