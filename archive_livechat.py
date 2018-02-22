@@ -1,6 +1,6 @@
 # For the window that prompts the user with a file_name
 import tkinter
-from tkinter.filedialog import asksaveasfilename, askopenfilename
+from tkinter.filedialog import asksaveasfilename
 
 import os
 import json
@@ -23,7 +23,10 @@ if __name__ == "__main__":
     # # A quick dummy test to see if saving a LiveChat works
     # # It creates a dummy LiveChat and prompts the user to save it
     # tkinter.Tk().withdraw()
-    # file_name = tkinter.filedialog.asksaveasfilename(title="Save LiveChat")
+    # file_name = tkinter.filedialog.asksaveasfilename(
+        # title="Save LiveChat",
+        # initialfile='test file name'
+    # )
     # LiveChat("", "", "").save_to_json(file_name)
 
     # Create an authenticated youtube service
@@ -33,9 +36,11 @@ if __name__ == "__main__":
     )
     
     # Choose an active live broadcast
-    livebroadcast = get_active_livebroadcast(client)
+    # livebroadcast = get_active_livebroadcast(client)
+    livebroadcast = livebroadcast_from_id(client, 'Xtfdi6el4yE')
     if livebroadcast is None:
         exit(">>> No active live broadcasts.")
+    print(livebroadcast)
     
     # Create the Chat object where the messages will be stored
     chat = Chat()
@@ -54,6 +59,9 @@ if __name__ == "__main__":
     # First, prompt the user to chose a saving file_name
     # You can replace file_name directly with a string if you want
     tkinter.Tk().withdraw()
-    file_name = tkinter.filedialog.asksaveasfilename(title="Save LiveChat")
+    file_name = tkinter.filedialog.asksaveasfilename(
+        title="Save LiveChat",
+        initialfile=livebroadcast.title + ".json"
+    )
     # Then save the live chat
     livechat.save_to_json(file_name)
