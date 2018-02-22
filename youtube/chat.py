@@ -22,7 +22,7 @@ import re
 import os
 
 LIVECHAT_BACKUP_DIR = "livechat-backup"
-LIVECHAT_BUFFER_SIZE = 5
+LIVECHAT_BUFFER_SIZE = 50
 
 def timestamp():
     """" Return a string of the form hhmmss representing the time now. """
@@ -40,8 +40,7 @@ def datetimestamp():
     return now
 
 class ChatMessage:
-    """ A ChatMessage object represents a message in a Chat.
-    https://developers.google.com/youtube/v3/live/docs/liveChatMessages#resource
+    """ A ChatMessage object represents a message in a Chat
 
     Attributes:
         author              Author of the message.
@@ -233,25 +232,19 @@ class MockChat(threading.Thread):
     chat from a saved list of messages.
 
     Attributes:
-        has_new_messages    A threading.Condition object that notifies all the
-                            waiting threads when new messages are available.
-        is_over             A threading.Event object that is set when the chat
-                            is over.
-        start_time          The time at which the chat started. This is the
-                            moment where the first message of the chat was posted.
-        refresh_rate        The refreshing rate of the Chat.
-        index               The index of the last available chat message.
+        is_over: A threading.Event object that is set when the chat is over.
+        chat: The Chat object where the chat messages are put.
+        start_time: The time at which the chat started. This is the moment where the first message of the chat was posted.
 
     Methods:
-        start               Start the chat.
-        estimated_duration  Estimated duration of the mock chat.
+        start: Start putting the chat messages in the Chat object.
+        estimated_duration: Estimated duration of the mock chat.    
     """
 
     index = 0
     is_over = threading.Event()
-    has_new_messages = threading.Condition()
 
-    def __init__(self, arch_mess, chat, refresh_rate, speed=1):
+    def __init__(self, archive_file, chat, refresh_rate=5, speed=1):
         """ A mock chat is an object constructed from a list of ChatMessage
         whose purpose is to re-create the chat thread.
 
@@ -263,9 +256,14 @@ class MockChat(threading.Thread):
 
         threading.Thread.__init__(self, name="Mock chat.")
         self.chat = chat
-        self._arch_mess = arch_mess
+        with open(archive_file, 'r') as f:
+            self._arch_mess = json.load(f) # List of liveChatMessage ressources
+
+        # Now self._arch_mess is a list of ChatMessage objects
+        self._arch_mess = [ChatMessage(**ress) for ress in self._arch_mess]
+            
         try:
-            self.start_time = dateparser(arch_mess[0].published_at)
+            self.start_time = dateparser(self._arch_mess[0].published_at)
         except IndexError:
             print(">>> No messages in MockChat.")
         if isinstance(speed, int):
@@ -273,9 +271,10 @@ class MockChat(threading.Thread):
         else:
             self.speed = 1
         self.refresh_rate = refresh_rate
-        self.nbr_messages = len(arch_mess)
+        self.nbr_messages = len(self._arch_mess)
 
-    def estimated_duration(self):
+    @property
+    def duration(self):
         """ How long should the mock chat last, given its speed."""
 
         span = (dateparser(self._arch_mess[-1].published_at)
@@ -305,8 +304,6 @@ class MockChat(threading.Thread):
 
             if old_index < self.index:
                 self.chat.extend_messages(self._arch_mess[old_index: self.index])
-                with self.has_new_messages:
-                    self.has_new_messages.notify_all()
 
             time.sleep(self.refresh_rate)
 
@@ -385,7 +382,6 @@ class LiveChat(threading.Thread):
         else:
             self._buffer = []
             self._bkp_file_paths.append(file_name)
-            print(self._bkp_file_paths)
 
     def save_to_json(self, file_name):
         """ Save to file_name. This method collects all backups made during the live chat into a single file.
