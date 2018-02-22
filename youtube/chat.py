@@ -350,7 +350,6 @@ class LiveChat(threading.Thread):
     _bkp_file_paths = []
     _bkp_file_name_template = "chat_ressource_backup_{}.bkp"
     _default_save_file_name_template = "chat_ressource_{}.json"
-    _bkp_dir = os.path.join(LIVECHAT_BACKUP_DIR, datetimestamp())
 
     def __init__(self, client, id, chat, refresh_rate=5, **kwargs):
         """ Initialize a LiveChat object.
@@ -367,6 +366,7 @@ class LiveChat(threading.Thread):
         self.client = client
         self.id = id
         self.refresh_rate = refresh_rate
+        self._bkp_dir = os.path.join(LIVECHAT_BACKUP_DIR, self.id)
 
         try:
             os.mkdir(self._bkp_dir)
@@ -383,8 +383,7 @@ class LiveChat(threading.Thread):
         the save_to_json method.
         """
 
-        file_name = self._bkp_file_name_template.format(timestamp())
-        file_name = os.path.join(self._bkp_dir, file_name)
+        file_name = os.path.join(self._bkp_dir, datetimestamp())
 
         try:
             with open(file_name, 'w') as f:
@@ -408,22 +407,12 @@ class LiveChat(threading.Thread):
         combine_live_chat_backups_to_json function in this module.
         """
 
-        # Collecting the backups into a single list called json_object
-        json_object = []
-        for file in self._bkp_file_paths:
-            try:
-                with open(file, 'r') as f:
-                    json_object.extend(json.load(f))
-            except Exception as e:
-                print(">>> There was a problem with loading the file {}.".format(file))
-                print(e)
-
-        if len(json_object) == 0:
-            print(">>> Live chat is empty, but let's save anyway!")
-        # Dump json_object
+        # Collecting the backups into a single list
+        messages = combine_liveChatMessage_ressources(self._bkp_file_paths)
+        
         try:
             with open(file_name, 'w') as f:
-                json.dump(json_object, f, indent=4)
+                json.dump(messages, f, indent=4)
         except Exception as e:
             print(">>> There was a problem with saving the live chat object.")
         else:
@@ -479,28 +468,6 @@ class LiveChat(threading.Thread):
     def __repr__(self):
         return "Live Chat with id {}.".format(self.id)
 
-
-# REMOVE: build a MockChat right from ressource...
-def mock_chat_from_file(file, chat, refresh_rate, **kwargs):
-    """ Build a MockChat from a file. Here file contains a json-loadable list
-    of chat messages (comming from a file returned by Chat().save_to_json or
-    LiveChat().save_to_json).
-    """
-
-    with open(file, 'r') as f:
-        raw_messages = json.load(f)
-
-    if "amount" in kwargs:
-        raw_messages = raw_messages[:kwargs["amount"]]
-
-    messages = [ChatMessage(**dict) for dict in raw_messages]
-
-    return MockChat(
-        messages,
-        chat,
-        refresh_rate,
-        kwargs.get("speed", 1)
-    )
 
 def combine_liveChatMessage_ressources(files):
     """ Combine the lists of youtube liveChatMessage ressources in the files 
