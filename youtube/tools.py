@@ -24,7 +24,7 @@ def list_of_choices(L):
             except IndexError:
                 print("Invalid index.")
 
-# Use ..\\config.ini to see where the storage is and replace storage by identity.                
+# Use ..\\config.ini to see where the storage is and replace storage by identity.
 def get_authenticated_service(client_secrets_file, storage_path, args = None):
     """Get read only authenticated youtube service."""
 
@@ -82,21 +82,21 @@ def search_active_livebroadcast(client, id):
         print("An HTTP error {} occurred while retrieving live broadcasts:\n{}"
             .format(e.resp.status, e.content)
         )
-    
-    
-    
+
+
+
     # Return None if no results were found
     if len(response['items']) == 0: return None
-    
+
     choice = list_of_choices([ress['id']['videoId'] for ress in response['items']])
     id = response['items'][choice]['id']['videoId']
     print(id)
     return livebroadcast_from_id(client, id)
-    
+
 def get_active_livebroadcast(client):
-    """ Given an authenticated client, choose one of its active live broadcasts. Returns the corresponding LiveBroadcast object or None if no live boradcasts were found.	
+    """ Given an authenticated client, choose one of its active live broadcasts. Returns the corresponding LiveBroadcast object or None if no live boradcasts were found.
     """
-    
+
     request = client.liveBroadcasts().list(
         broadcastStatus='active',
         part='id, snippet'
@@ -107,10 +107,24 @@ def get_active_livebroadcast(client):
         print("An HTTP error {} occurred while retrieving live broadcasts:\n{}"
             .format(e.resp.status, e.content)
         )
-        
+
     # Return None if no results were found
     if len(response['items']) == 0: return None
-    
+
     choice = list_of_choices([ress['id'] for ress in response['items']])
-    
+
     return LiveBroadcast(client, response['items'][choice])
+
+def get_channel_title(client, id):
+    request = client.channels().list(
+        id=id,
+        part='snippet'
+    )
+    try:
+        response = request.execute()
+    except HttpError as e:
+        print("An HTTP error {} occurred while retrieving live broadcasts:\n{}"
+            .format(e.resp.status, e.content)
+        )
+
+    return response['items'][0]['snippet'].get('title', 'unknown')
