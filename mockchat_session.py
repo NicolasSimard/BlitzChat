@@ -9,31 +9,32 @@ from youtube.chat import Chat, MockChat
 from youtube.tools import get_authenticated_service
 from youtube.filter import get_username, convert_to_local_time
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CLIENT_SECRETS_FILE = os.path.join(BASE_DIR, "client_secrets.json")
-STORAGE_FILE_NAME = "simardnicolas0"
+# Read the config file
+config = ConfigParser()
+config.read('config.ini')
 
+CREDENTIALS = "blitztutorat40"
 
-tkinter.Tk().withdraw()
+if __name__ == "__main__":
+    client = get_authenticated_service(
+        CLIENT_SECRETS_FILE,
+        STORAGE_FILE_NAME
+    )
 
-client = get_authenticated_service(
-    CLIENT_SECRETS_FILE,
-    STORAGE_FILE_NAME
-)
+    # Built a chat object
+    chat = Chat()
+    chat.add_filter(get_username(client))
+    chat.add_filter(convert_to_local_time)
 
-# Built a chat object
-chat = Chat()
-chat.add_filter(get_username(client))
-chat.add_filter(convert_to_local_time)
+    # Create the mockchat
+    tkinter.Tk().withdraw()
+    ressources = tkinter.filedialog.askopenfilename(title="Open MockChat")
+    mockchat = MockChat(ressources, chat, speed=500) 
+    print(mockchat)
+    print("The chat should last {} seconds.".format(mockchat.duration))
 
-# Create the mockchat
-ressources = tkinter.filedialog.askopenfilename(title="Open MockChat")
-mockchat = MockChat(ressources, chat, speed=500) 
-print(mockchat)
-print("The chat should last {} seconds.".format(mockchat.duration))
+    mockchat.start()
+    mockchat.join()
 
-mockchat.start()
-mockchat.join()
-
-save_file = tkinter.filedialog.asksaveasfilename(title="Save session")
-chat.save_pretty_chat(save_file)
+    save_file = tkinter.filedialog.asksaveasfilename(title="Save session")
+    chat.save_pretty_chat(save_file)
