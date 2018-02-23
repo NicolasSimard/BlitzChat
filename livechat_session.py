@@ -58,9 +58,11 @@ if __name__ == "__main__":
 
     # At this points, the live chat is over...
     tkinter.Tk().withdraw()
-    file_name = tkinter.filedialog.asksaveasfilename(
-        title="Save LiveChat",
-        initialfile=livebroadcast.title + ".json"
+    file_name = tkinter.filedialog.asksaveasfilename((
+        title='Save LiveChat',
+        defaultextension='json',
+        initialdir=config['DEFAULT']['archive'],
+        initialfile=livebroadcast.title + '.json'
     )
     # Then save the live chat
     livechat.save_to_json(file_name)

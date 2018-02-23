@@ -29,7 +29,11 @@ if __name__ == "__main__":
 
     # Create the mockchat
     tkinter.Tk().withdraw()
-    ressources = tkinter.filedialog.askopenfilename(title="Open MockChat")
+    ressources = tkinter.filedialog.askopenfilename(
+        title='Select ressource',
+        defaultextension='json',
+        initialdir=config['DEFAULT']['archive']
+    )
     mockchat = MockChat(ressources, chat, speed=500) 
     print(mockchat)
     print("The chat should last {} seconds.".format(mockchat.duration))
@@ -37,5 +41,9 @@ if __name__ == "__main__":
     mockchat.start()
     mockchat.join()
 
-    save_file = tkinter.filedialog.asksaveasfilename(title="Save session")
+    save_file = tkinter.filedialog.asksaveasfilename(
+        title='Save session',
+        defaultextension='txt',
+        initialdir=config['DEFAULT']['archive']
+    )
     chat.save_pretty_chat(save_file)
