@@ -4,6 +4,7 @@ from tkinter.filedialog import asksaveasfilename
 
 import os
 import json
+from configparser import ConfigParser
 
 from youtube.tools import *
 from youtube.chat import Chat, LiveChat
@@ -17,8 +18,8 @@ CREDENTIALS = 'nicolas'
 if __name__ == '__main__':
     # Create an authenticated youtube service
     client = get_authenticated_service(
-        CLIENT_SECRETS_FILE,
-        STORAGE_FILE_NAME
+        config['auth']['secrets'],
+        CREDENTIALS
     )
 
     # Choose an active live broadcast

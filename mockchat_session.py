@@ -4,6 +4,7 @@ from tkinter.filedialog import askopenfilename, asksaveasfilename
 
 import os
 import json
+from configparser import ConfigParser
 
 from youtube.chat import Chat, MockChat
 from youtube.tools import get_authenticated_service
@@ -17,8 +18,8 @@ CREDENTIALS = "blitztutorat40"
 
 if __name__ == "__main__":
     client = get_authenticated_service(
-        CLIENT_SECRETS_FILE,
-        STORAGE_FILE_NAME
+        config['auth']['secrets'],
+        CREDENTIALS
     )
 
     # Built a chat object
