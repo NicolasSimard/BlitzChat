@@ -23,10 +23,11 @@ import os
 
 LIVECHAT_BACKUP_DIR = "livechat-backup"
 LIVECHAT_BUFFER_SIZE = 50
+LIVECHAT_BUFFER_HOLD = datetime.timedelta(seconds=60)
 
 def timestamp():
     """" Return a string of the form hhmmss representing the time now. """
-    
+
     now = datetime.datetime.now().time().replace(microsecond = 0).__str__()
     now = now.replace(":","") # : is not allowed in windows file names.
     return now
@@ -47,10 +48,10 @@ class ChatMessage:
         published_at        Moment at which the message was published.
         content             Text content of the message.
         labels              A list of labels (strings) attached by classifiers.
-    
+
     Methods:
         add_label           Add a label (a string) to the message
-        as_dict             Return a dictionary representing the message        
+        as_dict             Return a dictionary representing the message
     """
 
     def __init__(self, **kwargs):
@@ -133,7 +134,7 @@ class ChatMessage:
 
     def __repr__(self):
         """ Returns self.as_dict().__str__(). """
-        
+
         return self.as_dict().__str__()
 
     def __str__(self):
@@ -167,20 +168,20 @@ class Chat:
     lock = threading.RLock()
     _messages = []
     filters = []
-    
+
     def __init__(self, print_messages=True):
-        self.print_messages = print_messages       
+        self.print_messages = print_messages
 
     def get_messages(self, begin, end):
         """ Returns the messages between begin and end, as in
         messages[begin: end].
         """
-    
+
         return self._messages[begin: end]
 
     def extend_messages(self, messages):
         """ Extend the messages with a list of ChatMessage objects.  """
-        
+
         filtered = []
         for message in messages:
             if isinstance(message, ChatMessage):
@@ -195,7 +196,7 @@ class Chat:
 
     def add_filter(self, f):
         self.filters.append(f)
-            
+
     def save_to_json(self, base_dir, file_name=None):
         """ Save to file named file_name in base_dir. If file_name=None (default)
         the file name will be 'chat_session_hhmmss.json'.
@@ -251,7 +252,7 @@ class MockChat(threading.Thread):
 
     Methods:
         start: Start putting the chat messages in the Chat object.
-        estimated_duration: Estimated duration of the mock chat.    
+        estimated_duration: Estimated duration of the mock chat.
     """
 
     index = 0
@@ -274,7 +275,7 @@ class MockChat(threading.Thread):
 
         # Now self._arch_mess is a list of ChatMessage objects
         self._arch_mess = [ChatMessage(**ress) for ress in self._arch_mess]
-            
+
         try:
             self.start_time = dateparser(self._arch_mess[0].published_at)
         except IndexError:
@@ -345,15 +346,12 @@ class LiveChat(threading.Thread):
     """
 
     is_over = threading.Event()
-
     _buffer = []
     _bkp_file_paths = []
-    _bkp_file_name_template = "chat_ressource_backup_{}.bkp"
-    _default_save_file_name_template = "chat_ressource_{}.json"
 
     def __init__(self, client, id, chat, refresh_rate=5, **kwargs):
         """ Initialize a LiveChat object.
-        
+
         Arguments:
             client: An authenticated youtube service.
             id: the id of the live chat.
@@ -367,6 +365,7 @@ class LiveChat(threading.Thread):
         self.id = id
         self.refresh_rate = refresh_rate
         self._bkp_dir = os.path.join(LIVECHAT_BACKUP_DIR, self.id)
+        self._last_buffer_dump = datetime.datetime.now()
 
         try:
             os.mkdir(self._bkp_dir)
@@ -392,8 +391,10 @@ class LiveChat(threading.Thread):
             print(">>> There was a problem with backing-up the live chat.")
             print(e)
         else:
+            print(">>> Buffer dumped. ")
             self._buffer = []
             self._bkp_file_paths.append(file_name)
+            self._last_buffer_dump = datetime.datetime.now()
 
     def save_to_json(self, file_name):
         """ Save to file_name. This method collects all backups made during the live chat into a single file.
@@ -404,12 +405,12 @@ class LiveChat(threading.Thread):
 
         If, for some reason, the program crashed and the LiveChat doesn't exist
         anymore, the backups can be "manually" combined using the
-        combine_live_chat_backups_to_json function in this module.
+        combine_live_chat_backups_in_dir function in this module.
         """
 
         # Collecting the backups into a single list
         messages = combine_liveChatMessage_ressources(self._bkp_file_paths)
-        
+
         try:
             with open(file_name, 'w') as f:
                 json.dump(messages, f, indent=4)
@@ -457,7 +458,13 @@ class LiveChat(threading.Thread):
                     )
 
                     self._buffer.extend(message_ressource)
+
+                    # Dump the buffer if it is too big
                     if len(self._buffer) >= LIVECHAT_BUFFER_SIZE:
+                        self.dump_buffer_to_json()
+
+                    # Dump the buffer if it has been held for too long
+                    if datetime.datetime.now() - self._last_buffer_dump > LIVECHAT_BUFFER_HOLD:
                         self.dump_buffer_to_json()
 
                 request = live_chat_messages.list_next(request, response)
@@ -470,7 +477,7 @@ class LiveChat(threading.Thread):
 
 
 def combine_liveChatMessage_ressources(files):
-    """ Combine the lists of youtube liveChatMessage ressources in the files 
+    """ Combine the lists of youtube liveChatMessage ressources in the files
     into a single list and return the list.
     """
 
@@ -487,20 +494,20 @@ def combine_liveChatMessage_ressources(files):
             # Keep only the messages not already in messages
             new_messages = [mess for mess in new_messages if mess not in messages]
             messages.extend(new_messages)
-    
+
     # Sort according to time
     messages = sorted(messages, key=(lambda mess: dateparser(mess.get("publishedAt"))))
-    
+
     return messages
-        
+
 def combine_live_chat_backups_in_dir(dir, file_name):
     """ Combines all the live chat backups in the directory dir and saves it
     in file_name (as a json object).
     """
-    
+
     files = [os.path.join(dir, file) for file in os.listdir(dir)]
     json_object = combine_liveChatMessage_ressources(files)
-    
+
     # Dump json_object
     try:
         with open(file_name, 'w') as f:
@@ -509,5 +516,4 @@ def combine_live_chat_backups_in_dir(dir, file_name):
         print(">>> There was a problem with saving the chat object.")
         print(e)
     print(">>> Succesfully saved to ressource to {}.".format(file_name))
- 
-       
+
