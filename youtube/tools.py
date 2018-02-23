@@ -7,7 +7,6 @@ from apiclient.errors import HttpError
 from oauth2client.file import Storage
 from oauth2client.tools import argparser, run_flow
 
-from .chat import LiveChat
 from .livebroadcast import LiveBroadcast
 
 def list_of_choices(L):
@@ -60,7 +59,7 @@ def livebroadcast_from_id(client, id):
         )
 
     if len(response['items']) == 1:
-        return LiveBroadcast(client, response['items'][0])
+        return LiveBroadcast(response['items'][0])
     else:
         return None
 
@@ -113,7 +112,7 @@ def get_active_livebroadcast(client):
 
     choice = list_of_choices([ress['id'] for ress in response['items']])
 
-    return LiveBroadcast(client, response['items'][choice])
+    return LiveBroadcast(response['items'][choice])
 
 def get_channel_title(client, id):
     request = client.channels().list(

@@ -1,8 +1,5 @@
-from apiclient.errors import HttpError
-from .chat import LiveChat
-
 class LiveBroadcast:
-    """ A LiveChat object represents a Youtube live broadcast. It corresponds to a Youtube liveBroadcast ressource (see https://developers.google.com/youtube/v3/live/docs/liveBroadcasts#resource)
+    """ A LiveBroadcast object represents a Youtube live broadcast. It corresponds to a Youtube liveBroadcast ressource (see https://developers.google.com/youtube/v3/live/docs/liveBroadcasts#resource)
 
     Attributes:
         client: An authenticated youtube service.
@@ -15,11 +12,11 @@ class LiveBroadcast:
         get_livechat: Returns the associated LiveChat object
     """
 
-    def __init__(self, client, ressource):
-        """ Initialize the live broadcast from an authenticated youtube client and a Youtube liveBroadcast ressource.
+    def __init__(self, ressource):
+        """ Initialize the live broadcast from 
+        a Youtube liveBroadcast ressource.
         """
 
-        self.client = client
         self.ressource = ressource
 
     @property
@@ -47,12 +44,6 @@ class LiveBroadcast:
     @property
     def livechat_id(self):
         return self.ressource['snippet'].get('liveChatId', None)
-            
-
-    def get_livechat(self, chat):
-        """ Return the associated LiveChat object. """
-
-        return LiveChat(self.client, self.livechat_id, chat)
 
     def __repr__(self):
         return self.ressource
