@@ -20,10 +20,20 @@ from dateutil.parser import parse as dateparser
 import json
 import re
 import os
+from configparser import ConfigParser
 
-LIVECHAT_BACKUP_DIR = "livechat-backup"
-LIVECHAT_BUFFER_SIZE = 50
-LIVECHAT_BUFFER_HOLD = datetime.timedelta(seconds=60)
+# Read the config file
+config = ConfigParser()
+config.read(os.path.join(os.getcwd(), 'config.ini'))
+
+livechat_config = config['livechat']
+LIVECHAT_BACKUP_DIR = livechat_config['backup']
+LIVECHAT_BUFFER_SIZE = int(livechat_config['buffsize'])
+LIVECHAT_REFRESH_RATE = int(livechat_config['refresh'])
+LIVECHAT_BUFFER_HOLD = datetime.timedelta(seconds=int(livechat_config['bufftimer']))
+
+mockchat_config = config['mockchat']
+MOCKCHAT_REFRESH_RATE = int(mockchat_config['refresh'])
 
 def timestamp():
     """" Return a string of the form hhmmss representing the time now. """
@@ -258,7 +268,7 @@ class MockChat(threading.Thread):
     index = 0
     is_over = threading.Event()
 
-    def __init__(self, archive_file, chat, refresh_rate=5, speed=1):
+    def __init__(self, archive_file, chat, speed=1):
         """ A mock chat is an object constructed from a list of ChatMessage
         whose purpose is to re-create the chat thread.
 
@@ -284,7 +294,7 @@ class MockChat(threading.Thread):
             self.speed = speed
         else:
             self.speed = 1
-        self.refresh_rate = refresh_rate
+        self.refresh_rate = MOCKCHAT_REFRESH_RATE
         self.nbr_messages = len(self._arch_mess)
 
     @property
@@ -349,21 +359,20 @@ class LiveChat(threading.Thread):
     _buffer = []
     _bkp_file_paths = []
 
-    def __init__(self, client, id, chat, refresh_rate=5, **kwargs):
+    def __init__(self, client, id, chat, **kwargs):
         """ Initialize a LiveChat object.
 
         Arguments:
             client: An authenticated youtube service.
             id: the id of the live chat.
             chat: Chat object in which the chat messages are put.
-            refresh_rate: The refresh rate (default=5)
         """
 
         threading.Thread.__init__(self, name="Live chat.")
         self.chat = chat
         self.client = client
         self.id = id
-        self.refresh_rate = refresh_rate
+        self.refresh_rate = LIVECHAT_REFRESH_RATE
         self._bkp_dir = os.path.join(LIVECHAT_BACKUP_DIR, self.id)
         self._last_buffer_dump = datetime.datetime.now()
 

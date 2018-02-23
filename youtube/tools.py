@@ -1,5 +1,6 @@
 import httplib2
-import json
+import os
+from configparser import ConfigParser
 
 from apiclient.discovery import build
 from oauth2client.client import flow_from_clientsecrets
@@ -8,6 +9,10 @@ from oauth2client.file import Storage
 from oauth2client.tools import argparser, run_flow
 
 from .livebroadcast import LiveBroadcast
+
+# Read the config file
+config = ConfigParser()
+config.read(os.path.join(os.getcwd(), 'config.ini'))
 
 def list_of_choices(L):
     if len(L) == 1:
@@ -23,7 +28,6 @@ def list_of_choices(L):
             except IndexError:
                 print("Invalid index.")
 
-# Use ..\\config.ini to see where the storage is and replace storage by identity.
 def get_authenticated_service(client_secrets_file, storage_path, args = None):
     """Get read only authenticated youtube service."""
 
@@ -33,7 +37,8 @@ def get_authenticated_service(client_secrets_file, storage_path, args = None):
         scope="https://www.googleapis.com/auth/youtube.readonly",
         message="WARNING: Please configure OAuth 2.0.")
 
-    storage = Storage("storage/{}-oauth2.json".format(storage_path))
+    storage_dir = config['auth']['storage']
+    storage = Storage("{}/{}-oauth2.json".format(storage_dir, storage_path))
     credentials = storage.get()
 
     if credentials is None or credentials.invalid:
