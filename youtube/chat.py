@@ -64,59 +64,23 @@ class ChatMessage:
         as_dict             Return a dictionary representing the message
     """
 
-    def __init__(self, **kwargs):
-        """ The __init__ function takes only keyword arguments. There are two
-        possible combinations:
-
-        1) corresponding to the dictionary ChatMessage.__dict__:
-        {
-            "author": str,
-            "published_at": str,
-            "content": str
-            "labels": [
-                str
-            ]
-        }
-
-        2) corresponding to the dictionary which represents the snippet dict of
-        a "youtube#liveChatMessage" ressource in a youtube live chat:
-        {
-            "type": "textMessageEvent",
-            "liveChatId": "Cg0KC1lxVHZfaC1CempZ",
-            "authorChannelId": "UC7aeSVebvKLp4o5MLtq5LZg",
-            "publishedAt": "2018-01-09T21:52:33.028Z",
-            "hasDisplayContent": true,
-            "displayMessage": "Allo",
-            "textMessageDetails": {
-                "messageText": "Allo"
-            }
-        }
-
-        Raises a RuntimeError if the author, publication time or content is missing.
+    def __init__(self, ressource):
+        """ ChatMessage objects correspond to a youtube#liveChatMessage ressources.
+        Such a ressource is represented by a dirctionnary in python and the init
+        function takes this dictionary as input. For convenience, the default
+        argument is the empty dictionary, so that ChatMessage objects can easily
+        be constructed by hand:
+        
+        message = ChatMessage()
+        message.author = 'Nicolas'
+        message.published_at = datetime.datetime.now()
+        message.content = 'Hello'        
         """
 
-        if "authorChannelId" in kwargs:
-            self.author = kwargs["authorChannelId"]
-        elif "author" in kwargs:
-            self.author = kwargs["author"]
-        else:
-            raise RuntimeError("No author provided.")
-
-        if "publishedAt" in kwargs:
-            self.published_at = kwargs["publishedAt"]
-        elif "published_at" in kwargs:
-            self.published_at = kwargs["published_at"]
-        else:
-            raise RuntimeError("No publication moment provided.")
-
-        if "textMessageDetails" in kwargs:
-            self.content = kwargs["textMessageDetails"]["messageText"]
-        elif "content" in kwargs:
-            self.content = kwargs["content"]
-        else:
-            raise RuntimeError("No content provided.")
-
-        self.labels = kwargs.get("labels", [])
+        self.author = ressource.get('authorChannelId', '')
+        self.published_at = ressource.get('publishedAt', '')
+        self.content = ressource.get('textMessageDetails', {}).get('messageText', '')
+        self.labels = []
 
     def add_label(self, label):
         """ Add a label (a string) to the chat message. """
@@ -148,14 +112,14 @@ class ChatMessage:
         return self.as_dict().__str__()
 
     def __str__(self):
-        # Try to know when the message was published
+        # Remove microseconds when printing the message
         try:
             published_time = dateparser(self.published_at).time().replace(microsecond=0)
         except ValueError as e:
             published_time = self.published_at
 
-        return "{} {:15s} at {}: {}".format(
-            ", ".join(self.labels),
+        return "{} {:20s} at {}: {}".format(
+            ",".join(self.labels),
             self.author,
             published_time,
             self.content
@@ -284,7 +248,7 @@ class MockChat(threading.Thread):
             self._arch_mess = json.load(f) # List of liveChatMessage ressources
 
         # Now self._arch_mess is a list of ChatMessage objects
-        self._arch_mess = [ChatMessage(**ress) for ress in self._arch_mess]
+        self._arch_mess = [ChatMessage(ress) for ress in self._arch_mess]
 
         try:
             self.start_time = dateparser(self._arch_mess[0].published_at)
@@ -463,7 +427,7 @@ class LiveChat(threading.Thread):
 
                     # Put messages in the chat
                     self.chat.extend_messages(
-                        [ChatMessage(**message) for message in message_ressource]
+                        [ChatMessage(message) for message in message_ressource]
                     )
 
                     self._buffer.extend(message_ressource)
