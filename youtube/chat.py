@@ -127,95 +127,6 @@ class ChatMessage:
         )
 
 
-class Chat:
-    """ A Chat object represents a collection of messages which can vary in time.
-
-    Attributes:
-        lock                A threading.Lock object to lock the object
-
-    Methods:
-        append_messages     Append messages to the object's messages
-        get_messages        Return chat messages
-        extend_messages     Extend the list of messages
-        save_to_json        Save Chat object to JSON format using its representation
-    """
-
-    lock = threading.RLock()
-    _messages = []
-    filters = []
-
-    def __init__(self, print_messages=True):
-        self.print_messages = print_messages
-
-    def get_messages(self, begin, end):
-        """ Returns the messages between begin and end, as in
-        messages[begin: end].
-        """
-
-        return self._messages[begin: end]
-
-    def extend_messages(self, messages):
-        """ Extend the messages with a list of ChatMessage objects.  """
-
-        filtered = []
-        for message in messages:
-            if isinstance(message, ChatMessage):
-                filtered.append(message)
-                # Apply the filters
-                for filter in self.filters: filter(filtered[-1])
-                # Maybe print the filtered message
-                if self.print_messages: print(filtered[-1])
-            else:
-                print(">>> Unable to append {} to Chat object.".format(message))
-        self._messages.extend(filtered)
-
-    def add_filter(self, f):
-        self.filters.append(f)
-
-    def save_to_json(self, base_dir, file_name=None):
-        """ Save to file named file_name in base_dir. If file_name=None (default)
-        the file name will be 'chat_session_hhmmss.json'.
-
-        It is always a good idea to test this function BEFORE running the actual
-        chat session to make sure that the data will be saved after the session.
-        For example, one could do
-        Chat().save_to_json(CURRENT_SAVE_DIR, file_name="test_save.txt")
-        """
-
-        if file_name is None:
-            file_name = "chat_session_{}.json".format(timestamp())
-        file_name = os.path.join(base_dir, file_name)
-
-        json_object = [message.as_dict() for message in self._messages]
-
-        if len(json_object) == 0:
-            print(">>> Chat had nothing to save.")
-        else:
-            try:
-                with open(file_name, 'w') as f:
-                    json.dump(json_object, f, indent=4)
-            except Exception as e:
-                print(">>> There was a problem with saving the chat object.")
-                print(e)
-            else:
-                print(">>> Chat succesfully saved.")
-
-    def save_pretty_chat(self, file_name):
-        """ Save to file_name in human readable format. """
-
-        s = '\n'.join([str(mess) for mess in self._messages])
-        with open(file_name, 'w', encoding='utf-8') as f:
-            f.write(s)
-
-    def __repr__(self):
-        return dict([
-            ("messages", [message.__repr__() for message in self._messages])
-        ]).__str__()
-
-    def __str__(self):
-        return("Chat object containing {} messages. ".format(len(self._messages)))
-
-
 class MockChat:
     """ A MockChat object represents a mock chat, i.e. a reproduction of a live
     chat from a saved list of messages.
@@ -336,12 +247,12 @@ class MockChat:
         )
 
 
-class LiveChat(threading.Thread):
+class LiveChat:
     """ A LiveChat object represents a live youtube chat, i.e. live chat attached to a youtube live broadcast.
 
     Attributes:
-        is_over: A threading.Event object that is set when the chat is over.
-        chat: The Chat object where the chat messages are put.
+        is_over: A booleann variable that is set when the chat is over.
+        target: A target object where the chat messages are put.
         id: id of the livechat
 
     Methods:
@@ -350,21 +261,20 @@ class LiveChat(threading.Thread):
         save_to_json: Save the LiveChat object.
     """
 
-    is_over = threading.Event()
+    is_over = False
     _buffer = []
     _bkp_file_paths = []
 
-    def __init__(self, client, id, chat, **kwargs):
+    def __init__(self, client, id, target, **kwargs):
         """ Initialize a LiveChat object.
 
         Arguments:
             client: An authenticated youtube service.
             id: the id of the live chat.
-            chat: Chat object in which the chat messages are put.
+            target: a target in which the chat messages are put.
         """
 
-        threading.Thread.__init__(self, name="Live chat.")
-        self.chat = chat
+        self.target = target
         self.client = client
         self.id = id
         self.refresh_rate = LIVECHAT_REFRESH_RATE
@@ -423,10 +333,34 @@ class LiveChat(threading.Thread):
         else:
             print(">>> Live chat succesfully saved to {}.".format(file_name))
 
+    def _wait_to_refresh(self):
+        """ This function tries to wait for self.refresh_rate seconds and
+        catches KeyboardInterrupt exceptions. This allows the user to have more
+        control over the session...        
+        """
+        
+        try:
+            time.sleep(self.refresh_rate)
+        except KeyboardInterrupt:
+            print(">>> Live chat interrupted at {}.\n"
+                  ">>> Buffer size: {}".format(
+                  datetime.datetime.now().time().replace(microsecond = 0),
+                  len(self._buffer)
+                  )
+            )
+            if input(">>> Type \"Y\" to dump the buffer: ") == 'Y':
+                self.dump_buffer_to_json()
+            if input(">>> Type \"Y\" to exit (and dump the buffer): ") == 'Y':
+                print(">>> Exiting the refreshing loop.")
+                self.is_over = True
+
+    def start_refresh_loop(self):
+        self.run()
+
     def run(self):
         """ As the time passes, more messages are available on youtube.
         The run method makes those messages available (by retrieving them and
-        then by putting them in self.chat) and notifies all waiting threads via
+        then by putting them in self.target) and notifies all waiting threads via
         its has_new_messages condition.
         """
 
@@ -436,7 +370,7 @@ class LiveChat(threading.Thread):
             part="snippet"
         )
 
-        while request is not None and not self.is_over.is_set():
+        while request is not None and not self.is_over:
             try:
                 response = request.execute()
             except HttpError as e:
@@ -451,13 +385,13 @@ class LiveChat(threading.Thread):
                     .format(e.resp.status, e_message)
                 )
                 print(">>> Closing the live chat.")
-                self.is_over.set()
+                self.is_over = True
             else:
                 if len(response["items"]) > 0:
                     message_ressource = [item["snippet"] for item in response["items"]]
 
                     # Put messages in the chat
-                    self.chat.extend_messages(
+                    self.target.extend_messages(
                         [ChatMessage(message) for message in message_ressource]
                     )
 
@@ -472,9 +406,8 @@ class LiveChat(threading.Thread):
                         self.dump_buffer_to_json()
 
                 request = live_chat_messages.list_next(request, response)
-                time.sleep(self.refresh_rate)
+                self._wait_to_refresh()
         self.dump_buffer_to_json()
-        print(">>> The live chat is over.")
 
     def __repr__(self):
         return "Live Chat with id {}.".format(self.id)

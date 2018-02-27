@@ -7,7 +7,8 @@ import json
 from configparser import ConfigParser
 
 from youtube.tools import *
-from youtube.chat import Chat, LiveChat
+from youtube.chat import LiveChat
+from youtube.target import Session
 
 # Read the config file
 config = ConfigParser()
@@ -23,7 +24,7 @@ if __name__ == '__main__':
     )
 
     # Choose an active live broadcast
-    livebroadcast = livebroadcast_from_id(client, '87vXWgjKFWE')
+    livebroadcast = livebroadcast_from_id(client, '')
     if livebroadcast is None:
         exit(">>> No active live broadcasts.")
     print(livebroadcast)
@@ -32,15 +33,13 @@ if __name__ == '__main__':
         exit(">>> The livechat attached to this livebroadcast is no longer active.")
 
     # Create the Chat object where the messages will be stored
-    chat = Chat()
-       
+    session = Session()
+
     # Create the LiveChat object associated to the live broadcast
-    livechat = LiveChat(client, livebroadcast.livechat_id, chat)
+    livechat = LiveChat(client, livebroadcast.livechat_id, session)
     print(livechat)
 
-    # Start the LiveChat, i.e. start requesting messages    
-    livechat.start()
-    livechat.join()
+    livechat.start_refresh_loop()
 
     # At this points, the live chat is over...
     tkinter.Tk().withdraw()
