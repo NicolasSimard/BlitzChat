@@ -299,7 +299,7 @@ class LiveChat:
         file_name = os.path.join(self._bkp_dir, datetimestamp())
 
         try:
-            with open(file_name, 'w') as f:
+            with open(file_name, 'w', encoding='utf8') as f:
                 json.dump(self._buffer, f)
         except Exception as e:
             print(">>> There was a problem with backing-up the live chat.")
@@ -326,7 +326,7 @@ class LiveChat:
         messages = combine_liveChatMessage_ressources(self._bkp_file_paths)
 
         try:
-            with open(file_name, 'w') as f:
+            with open(file_name, 'w', encoding='utf8') as f:
                 json.dump(messages, f, indent=4)
         except Exception as e:
             print(">>> There was a problem with saving the live chat object.")
@@ -447,7 +447,7 @@ def combine_live_chat_backups_in_dir(dir, file_name):
 
     # Dump json_object
     try:
-        with open(file_name, 'w') as f:
+        with open(file_name, 'w', encoding='utf8') as f:
             json.dump(json_object, f, indent=4)
     except Exception as e:
         print(">>> There was a problem with saving the chat object.")
