@@ -6,9 +6,10 @@ import os
 import json
 from configparser import ConfigParser
 
-from youtube.chat import Chat, MockChat
+from youtube.chat import *
 from youtube.tools import get_authenticated_service
 from youtube.filter import get_username, convert_to_local_time
+from youtube.target import Session
 
 # Read the config file
 config = ConfigParser()
@@ -23,9 +24,9 @@ if __name__ == "__main__":
     )
 
     # Built a chat object
-    chat = Chat()
-    chat.add_filter(get_username(client))
-    chat.add_filter(convert_to_local_time)
+    session = Session()
+    session.add_filter(get_username(client))
+    session.add_filter(convert_to_local_time)
 
     # Create the mockchat
     tkinter.Tk().withdraw()
@@ -34,16 +35,18 @@ if __name__ == "__main__":
         defaultextension='json',
         initialdir=config['DEFAULT']['archive']
     )
-    mockchat = MockChat(ressources, chat, speed=500) 
+    mockchat = MockChat(ressources, session, speed=500) 
     print(mockchat)
     print("The chat should last {} seconds.".format(mockchat.duration))
 
     mockchat.start()
     mockchat.join()
 
+    initialfile = os.path.splitext(os.path.split(ressources)[1])[0]
     save_file = tkinter.filedialog.asksaveasfilename(
         title='Save session',
         defaultextension='txt',
-        initialdir=config['DEFAULT']['archive']
+        initialdir=config['DEFAULT']['archive'],
+        initialfile=initialfile
     )
-    chat.save_pretty_chat(save_file)
+    session.save(save_file)
