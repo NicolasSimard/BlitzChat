@@ -35,13 +35,12 @@ if __name__ == "__main__":
         defaultextension='json',
         initialdir=config['DEFAULT']['archive']
     )
-    mockchat = MockChat(ressources, session, speed=500) 
+    mockchat = MockChat(ressources, session, speed=1) 
     print(mockchat)
     print("The chat should last {} seconds.".format(mockchat.duration))
 
-    mockchat.start()
-    mockchat.join()
-
+    mockchat.start_refresh_loop()
+    
     initialfile = os.path.splitext(os.path.split(ressources)[1])[0]
     save_file = tkinter.filedialog.asksaveasfilename(
         title='Save session',

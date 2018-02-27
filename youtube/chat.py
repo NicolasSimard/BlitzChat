@@ -48,8 +48,9 @@ def datetimestamp():
 
     now = datetime.datetime.now().replace(microsecond = 0).__str__()
     now = now.replace(":","").replace(" ","_") # : is not allowed in windows file names.
-    return now
+    return now    
 
+    
 class ChatMessage:
     """ A ChatMessage object represents a message in a Chat
 
@@ -215,24 +216,26 @@ class Chat:
         return("Chat object containing {} messages. ".format(len(self._messages)))
 
 
-class MockChat(threading.Thread):
+class MockChat:
     """ A MockChat object represents a mock chat, i.e. a reproduction of a live
     chat from a saved list of messages.
 
     Attributes:
-        is_over: A threading.Event object that is set when the chat is over.
-        chat: The Chat object where the chat messages are put.
+        is_over: A booleann variable that is set when the chat is over.
+        target: A target object where the chat messages are put.
         start_time: The time at which the chat started. This is the moment where the first message of the chat was posted.
 
     Methods:
         start: Start putting the chat messages in the Chat object.
-        estimated_duration: Estimated duration of the mock chat.
+        duration: Estimated duration of the mock chat.
+        run: Starts making chat messages available until the chat is over.
+        start_refresh_loop: calls the run method.
     """
 
     index = 0
-    is_over = threading.Event()
+    is_over = False
 
-    def __init__(self, archive_file, chat, speed=1):
+    def __init__(self, archive_file, target, speed=1):
         """ A mock chat is an object constructed from a list of ChatMessage
         whose purpose is to re-create the chat thread.
 
@@ -242,8 +245,7 @@ class MockChat(threading.Thread):
         the chat at speed times the speed.
         """
 
-        threading.Thread.__init__(self, name="Mock chat.")
-        self.chat = chat
+        self.target = target
         with open(archive_file, 'r') as f:
             self._arch_mess = json.load(f) # List of liveChatMessage ressources
 
@@ -268,17 +270,46 @@ class MockChat(threading.Thread):
         span = (dateparser(self._arch_mess[-1].published_at)
                 - dateparser(self._arch_mess[0].published_at)).total_seconds()
         return span / self.speed
+    
+    def _wait_to_refresh(self):
+        """ This function tries to wait for self.refresh_rate seconds and
+        catches KeyboardInterrupt exceptions. This allows the user to have more
+        control over the session...        
+        """
+        
+        try:
+            time.sleep(self.refresh_rate)
+        except KeyboardInterrupt:
+            print(">>> Mock chat interrupted.\n"
+                  ">>> Any positive integer entered will become the new speed.\n"
+                  ">>> Entering 0 will stop the chat.\n"
+                  ">>> Any other entry will make the chat resume. "
+            )
+            try:
+                n = int(input(">>> Your input: "))
+            except Exception:
+                pass
+            else:
+                if n == 0:
+                    print(">>> Stopping the chat.")
+                    self.is_over = True
+                elif 0 < n:
+                    print(">>> New speed is {}.".format(n))
+                    self.speed = n
 
+    def start_refresh_loop(self):
+        self.run()
+                    
     def run(self):
         """ As the time passes, more messages are available in the MockChat.
         The run method makes those messages available (by putting them in
-        self.chat) and notifies all waiting threads via its has_new_messages
-        condition.
+        self.target). This loop can be interrupted via a KeyboardInterrupt 
+        exception.
         """
 
         actual_start_time = datetime.datetime.now()
 
-        while not self.is_over.is_set():
+        while not self.is_over:
             delta = datetime.datetime.now() - actual_start_time
             delta *= self.speed # Accelerate time
 
@@ -288,12 +319,12 @@ class MockChat(threading.Thread):
                 self.index += 1
 
             if self.index == self.nbr_messages:
-                self.is_over.set()
+                self.is_over = True
 
             if old_index < self.index:
-                self.chat.extend_messages(self._arch_mess[old_index: self.index])
+                self.target.extend_messages(self._arch_mess[old_index: self.index])
 
-            time.sleep(self.refresh_rate)
+            self._wait_to_refresh()
 
     def __repr__(self):
         return self.__str__()
