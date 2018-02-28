@@ -452,7 +452,7 @@ def combine_live_chat_backups_in_dir(dir, file_name):
     # Dump json_object
     try:
         with open(file_name, 'w', encoding='utf8') as f:
-                f.write(json.dumps(json_object, indent=4, ensure_ascii=False))
+            f.write(json.dumps(json_object, indent=4, ensure_ascii=False))
     except Exception as e:
         print(">>> There was a problem with saving the chat object.")
         print(e)
