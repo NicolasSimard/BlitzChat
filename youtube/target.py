@@ -1,3 +1,5 @@
+import json
+
 class Session:
     """ A Session is an object which represents a collection of chat messages
     that are processed and saved in a list.
@@ -40,27 +42,26 @@ class Session:
 
         if len(self.messages) == 0: print(">>> The session is empty.")
 
+        if mode == 'pretty':
+            s = '\n'.join([str(mess) for mess in self.messages])
+        elif mode == 'json':
+            s = json.dumps(
+                [mess.as_dict() for mess in self.messages],
+                indent=4,
+                ensure_ascii=False
+            )
+        else:
+            print(">>> Unknown mode: {}".format(mode))
         with open(file_name, 'w', encoding='utf-8') as f:
-            if mode == 'pretty':
-                string = '\n'.join([str(mess) for mess in self.messages])
-                try:
-                    f.write(string)
-                except Exception as e:
-                    print(">>> There was a problem with saving the session.")
-                    print(e)
-                else:
-                    print(">>> Session succesfully saved.")
-            elif mode == 'json':
-                json_object = [mess.as_dict() for mess in self.messages]
-                try:
-                    json.dump(json_object, f, indent=4)
-                except Exception as e:
-                    print(">>> There was a problem with saving the session.")
-                    print(e)
-                else:
-                    print(">>> Session succesfully saved.")
+            try:
+                f.write(s)
+            except Exception as e:
+                print(">>> There was a problem with saving the session.")
+                print(e)
             else:
-                print(">>> Unknown mode: {}".format(mode))
+                print(">>> Session succesfully saved.")
+            
+            
 
     def __repr__(self):
         return dict([

@@ -18,14 +18,8 @@ config.read('config.ini')
 CREDENTIALS = "blitztutorat40"
 
 if __name__ == "__main__":
-    client = get_authenticated_service(
-        config['auth']['secrets'],
-        CREDENTIALS
-    )
-
     # Built a chat object
     session = Session()
-    session.add_filter(get_username(client))
     session.add_filter(convert_to_local_time)
 
     # Create the mockchat
@@ -35,7 +29,7 @@ if __name__ == "__main__":
         defaultextension='json',
         initialdir=config['DEFAULT']['archive']
     )
-    mockchat = MockChat(ressources, session, speed=1) 
+    mockchat = MockChat(ressources, session, speed=100) 
     print(mockchat)
     print("The chat should last {} seconds.".format(mockchat.duration))
 

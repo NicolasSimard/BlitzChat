@@ -26,12 +26,12 @@ if __name__ == "__main__":
 
     # Choose an active live broadcast on the channel of the authenticated client
     # Method 1:
-    # print(">>> Looking for active live broadcasts of authenticated client.")
-    # livebroadcast = get_active_livebroadcast(client)
+    print(">>> Looking for active live broadcasts of authenticated client.")
+    livebroadcast = get_active_livebroadcast(client)
 
     # Method 2:
-    print(">>> Looking for a live broadcasts by id.")
-    livebroadcast = livebroadcast_from_id(client, '')
+    # print(">>> Looking for a live broadcasts by id.")
+    # livebroadcast = livebroadcast_from_id(client, '')
 
     # method 3:
     # print(">>> Looking for active live broadcasts on the Blitz Channel.")
@@ -45,7 +45,6 @@ if __name__ == "__main__":
 
     # Create a Session object where the messages will be stored and precessed
     session = Session()
-    session.add_filter(get_username(client))
     session.add_filter(convert_to_local_time)
        
     # Create the LiveChat object associated to the live broadcast

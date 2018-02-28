@@ -78,9 +78,12 @@ class ChatMessage:
         message.content = 'Hello'        
         """
 
-        self.author = ressource.get('authorChannelId', '')
-        self.published_at = ressource.get('publishedAt', '')
-        self.content = ressource.get('textMessageDetails', {}).get('messageText', '')
+        self.id = ressource.get('id', '')
+        snippet = ressource.get('snippet', {})
+        self.author_channel_id = snippet.get('authorChannelId', '')
+        self.published_at = snippet.get('publishedAt', '')
+        self.content = snippet.get('textMessageDetails', {}).get('messageText', '')
+        self.author = ressource.get('authorDetails', {}).get('displayName', self.author_channel_id)
         self.labels = []
 
     def add_label(self, label):
@@ -157,7 +160,7 @@ class MockChat:
         """
 
         self.target = target
-        with open(archive_file, 'r') as f:
+        with open(archive_file, 'r', encoding='utf8') as f:
             self._arch_mess = json.load(f) # List of liveChatMessage ressources
 
         # Now self._arch_mess is a list of ChatMessage objects
@@ -297,12 +300,12 @@ class LiveChat:
         """
 
         file_name = os.path.join(self._bkp_dir, datetimestamp())
-
+        
         try:
             with open(file_name, 'w', encoding='utf8') as f:
-                json.dump(self._buffer, f)
+                f.write(json.dumps(self._buffer, ensure_ascii=False))
         except Exception as e:
-            print(">>> There was a problem with backing-up the live chat.")
+            print(">>> There was a problem with dumping the live chat buffer.")
             print(e)
         else:
             print(">>> Buffer dumped. ")
@@ -327,7 +330,7 @@ class LiveChat:
 
         try:
             with open(file_name, 'w', encoding='utf8') as f:
-                json.dump(messages, f, indent=4)
+                f.write(json.dumps(messages, indent=4, ensure_ascii=False))
         except Exception as e:
             print(">>> There was a problem with saving the live chat object.")
         else:
@@ -367,7 +370,7 @@ class LiveChat:
         live_chat_messages = self.client.liveChatMessages()
         request = live_chat_messages.list(
             liveChatId=self.id,
-            part="snippet"
+            part="id, snippet, authorDetails"
         )
 
         while request is not None and not self.is_over:
@@ -388,14 +391,12 @@ class LiveChat:
                 self.is_over = True
             else:
                 if len(response["items"]) > 0:
-                    message_ressource = [item["snippet"] for item in response["items"]]
-
                     # Put messages in the chat
                     self.target.extend_messages(
-                        [ChatMessage(message) for message in message_ressource]
+                        [ChatMessage(ress) for ress in response["items"]]
                     )
 
-                    self._buffer.extend(message_ressource)
+                    self._buffer.extend(response["items"])
 
                     # Dump the buffer if it is too big
                     if len(self._buffer) >= LIVECHAT_BUFFER_SIZE:
@@ -422,7 +423,7 @@ def combine_liveChatMessage_ressources(files):
     messages = []
     for file in files:
         try:
-            with open(file, 'r') as f:
+            with open(file, 'r', encoding='utf-8') as f:
                 new_messages = json.load(f)
         except Exception as e:
             print(">>> There was a problem with loading the file {}.".format(file))
@@ -433,7 +434,10 @@ def combine_liveChatMessage_ressources(files):
             messages.extend(new_messages)
 
     # Sort according to time
-    messages = sorted(messages, key=(lambda mess: dateparser(mess.get("publishedAt"))))
+    messages = sorted(
+        messages,
+        key=(lambda mess: dateparser(mess.get('snippet').get('publishedAt')))
+    )
 
     return messages
 
@@ -448,7 +452,7 @@ def combine_live_chat_backups_in_dir(dir, file_name):
     # Dump json_object
     try:
         with open(file_name, 'w', encoding='utf8') as f:
-            json.dump(json_object, f, indent=4)
+                f.write(json.dumps(json_object, indent=4, ensure_ascii=False))
     except Exception as e:
         print(">>> There was a problem with saving the chat object.")
         print(e)
