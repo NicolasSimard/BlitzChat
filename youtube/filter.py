@@ -11,11 +11,11 @@ def get_username(client):
     titles = {}
     
     def f(message):
-        if message.author in titles:
-            message.author = titles[message.author]
+        if message.author_channel_id in titles:
+            message.author = titles[message.author_channel_id]
         else:
-            title = get_channel_title(client, message.author)
-            titles[message.author] = title
+            title = get_channel_title(client, message.author_channel_id)
+            titles[message.author_channel_id] = title
             message.author = title
     return f
     
