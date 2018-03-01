@@ -303,7 +303,7 @@ class LiveChat:
         
         try:
             with open(file_name, 'w', encoding='utf8') as f:
-                f.write(json.dumps(self._buffer, ensure_ascii=False))
+                json.dump(self._buffer, f, ensure_ascii=False)
         except Exception as e:
             print(">>> There was a problem with dumping the live chat buffer.")
             print(e)
@@ -330,7 +330,7 @@ class LiveChat:
 
         try:
             with open(file_name, 'w', encoding='utf8') as f:
-                f.write(json.dumps(messages, indent=4, ensure_ascii=False))
+                json.dump(messages, f, indent=4, ensure_ascii=False)
         except Exception as e:
             print(">>> There was a problem with saving the live chat object.")
         else:
@@ -423,7 +423,7 @@ def combine_liveChatMessage_ressources(files):
     messages = []
     for file in files:
         try:
-            with open(file, 'r', encoding='utf-8') as f:
+            with open(file, 'r', encoding='utf8') as f:
                 new_messages = json.load(f)
         except Exception as e:
             print(">>> There was a problem with loading the file {}.".format(file))
@@ -452,7 +452,7 @@ def combine_live_chat_backups_in_dir(dir, file_name):
     # Dump json_object
     try:
         with open(file_name, 'w', encoding='utf8') as f:
-            f.write(json.dumps(json_object, indent=4, ensure_ascii=False))
+            json.dump(json_object, f, indent=4, ensure_ascii=False)
     except Exception as e:
         print(">>> There was a problem with saving the chat object.")
         print(e)
