@@ -9,7 +9,7 @@ from configparser import ConfigParser
 from youtube.tools import *
 from youtube.chat import LiveChat
 from youtube.target import Session
-from youtube.filter import get_username, convert_to_local_time
+from youtube.filter import convert_to_local_time, delete_pattern
 
 # Read the config file
 config = ConfigParser()
@@ -46,6 +46,7 @@ if __name__ == "__main__":
     # Create a Session object where the messages will be stored and precessed
     session = Session()
     session.add_filter(convert_to_local_time)
+    session.add_filter(delete_pattern(client, '#delete'))
        
     # Create the LiveChat object associated to the live broadcast
     livechat = LiveChat(client, livebroadcast.livechat_id, session)

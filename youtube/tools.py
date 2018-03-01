@@ -34,7 +34,7 @@ def get_authenticated_service(client_secrets_file, storage_path, args = None):
     if args is None: args = argparser.parse_args()
 
     flow = flow_from_clientsecrets(client_secrets_file,
-        scope="https://www.googleapis.com/auth/youtube.readonly",
+        scope="https://www.googleapis.com/auth/youtube",
         message="WARNING: Please configure OAuth 2.0.")
 
     storage_dir = config['auth']['storage']
@@ -132,3 +132,6 @@ def get_channel_title(client, id):
         )
 
     return response['items'][0]['snippet'].get('title', 'unknown')
+
+def delete_message(client, id):
+    request = client.liveChatMessages().delete(id=id).execute()
