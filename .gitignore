@@ -4,6 +4,7 @@ client_secrets.json
 # Private info
 storage/
 drive-archive/
+livechat-backup/
 nppsession.txt
 
 # Byte-compiled / optimized / DLL files

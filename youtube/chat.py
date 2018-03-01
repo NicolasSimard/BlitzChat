@@ -1,12 +1,12 @@
-""" chat module defines all the classes and auxialry functions to work with
+""" chat module defines all the classes and auxilary functions to work with
 youtube chats.
 
 The classes are:
 
     ChatMessage             Represents a chat message
     Chat                    Represents a general chat, with its messages
-    LiveChat(Chat, Thread)  Represents a chat associated with a youtube service
-    MockChat(Chat, Thread)  Represents a chat constructed from a file
+    LiveChat(Thread)        Represents a chat associated with a youtube service
+    MockChat(Thread)        Represents a chat constructed from a file
 
 The auxilary functions are:
 
@@ -20,70 +20,69 @@ from dateutil.parser import parse as dateparser
 import json
 import re
 import os
+from configparser import ConfigParser
 
+# Read the config file
+config = ConfigParser()
+config.read(os.path.join(os.getcwd(), 'config.ini'))
+
+LIVECHAT_BACKUP_DIR = config['livechat']['backup']
+LIVECHAT_BUFFER_SIZE = config.getint('livechat', 'buffsize')
+LIVECHAT_REFRESH_RATE = config.getint('livechat', 'refresh')
+LIVECHAT_BUFFER_HOLD = datetime.timedelta(seconds=config.getint('livechat', 'bufftimer'))
+
+MOCKCHAT_REFRESH_RATE = config.getint('livechat', 'refresh')
+
+def timestamp():
+    """" Return a string of the form hhmmss representing the time now. """
+
+    now = datetime.datetime.now().time().replace(microsecond = 0).__str__()
+    now = now.replace(":","") # : is not allowed in windows file names.
+    return now
+
+def datetimestamp():
+    """" Return a string of the form yyyy-mm-dd_hhmmss representing the date
+    and time now. """
+
+    now = datetime.datetime.now().replace(microsecond = 0).__str__()
+    now = now.replace(":","").replace(" ","_") # : is not allowed in windows file names.
+    return now    
+
+    
 class ChatMessage:
-    """ A ChatMessage object represents a message in a Chat.
+    """ A ChatMessage object represents a message in a Chat
 
     Attributes:
         author              Author of the message.
         published_at        Moment at which the message was published.
         content             Text content of the message.
         labels              A list of labels (strings) attached by classifiers.
+
+    Methods:
+        add_label           Add a label (a string) to the message
+        as_dict             Return a dictionary representing the message
     """
 
-    def __init__(self, **kwargs):
-        """ The __init__ function takes only keyword arguments. There are two
-        possible combinations:
-
-        1) corresponding to the dictionary ChatMessage.__dict__:
-        {
-            "author": str,
-            "published_at": str,
-            "content": str
-            "labels": [
-                str
-            ]
-        }
-
-        2) corresponding to the dictionary which represents the snippet dict of
-        a "youtube#liveChatMessage" ressource in a youtube live chat:
-        {
-            "type": "textMessageEvent",
-            "liveChatId": "Cg0KC1lxVHZfaC1CempZ",
-            "authorChannelId": "UC7aeSVebvKLp4o5MLtq5LZg",
-            "publishedAt": "2018-01-09T21:52:33.028Z",
-            "hasDisplayContent": true,
-            "displayMessage": "Allo",
-            "textMessageDetails": {
-                "messageText": "Allo"
-            }
-        }
-
-        Raises a RuntimeError if the author, publication time or content is missing.
+    def __init__(self, ressource):
+        """ ChatMessage objects correspond to a youtube#liveChatMessage ressources.
+        Such a ressource is represented by a dirctionnary in python and the init
+        function takes this dictionary as input. For convenience, the default
+        argument is the empty dictionary, so that ChatMessage objects can easily
+        be constructed by hand:
+        
+        message = ChatMessage()
+        message.author = 'Nicolas'
+        message.published_at = datetime.datetime.now()
+        message.content = 'Hello'        
         """
 
-        if "authorChannelId" in kwargs:
-            self.author = kwargs["authorChannelId"]
-        elif "author" in kwargs:
-            self.author = kwargs["author"]
-        else:
-            raise RuntimeError("No author provided.")
-
-        if "publishedAt" in kwargs:
-            self.published_at = kwargs["publishedAt"]
-        elif "published_at" in kwargs:
-            self.published_at = kwargs["published_at"]
-        else:
-            raise RuntimeError("No publication moment provided.")
-
-        if "textMessageDetails" in kwargs:
-            self.content = kwargs["textMessageDetails"]["messageText"]
-        elif "content" in kwargs:
-            self.content = kwargs["content"]
-        else:
-            raise RuntimeError("No content provided.")
-
-        self.labels = kwargs.get("labels", [])
+        self.id = ressource.get('id', '')
+        snippet = ressource.get('snippet', {})
+        self.author_channel_id = snippet.get('authorChannelId', '')
+        self.published_at = snippet.get('publishedAt', '')
+        self.content = snippet.get('textMessageDetails', {}).get('messageText', '')
+        self.author = ressource.get('authorDetails', {}).get('displayName', self.author_channel_id)
+        self.labels = []
 
     def add_label(self, label):
         """ Add a label (a string) to the chat message. """
@@ -102,120 +101,53 @@ class ChatMessage:
         }
         """
 
-        return dict([
-            ("author", self.author),
-            ("published_at", self.published_at),
-            ("content", self.content),
-            ("labels", self.labels)
-        ])
+        return {
+            'author': self.author,
+            'published_at': self.published_at,
+            'content': self.content,
+            'labels': self.labels
+        }
 
     def __repr__(self):
-        """ Returns self.as_dict(). """
+        """ Returns self.as_dict().__str__(). """
+
         return self.as_dict().__str__()
 
     def __str__(self):
-        # Try to know when the message was published
+        # Remove microseconds when printing the message
         try:
             published_time = dateparser(self.published_at).time().replace(microsecond=0)
         except ValueError as e:
             published_time = self.published_at
 
-        return "{} {:15s} at {}: {}".format(
-            ", ".join(self.labels),
+        return "{} {:20s} at {}: {}".format(
+            ",".join(self.labels),
             self.author,
             published_time,
             self.content
         )
 
 
-class Chat:
-    """ A Chat object represents a collention of messages which can vary in time.
-
-    Attributes:
-        lock                A threading.Lock object to lock the object
-
-    Methods:
-        append_messages     Append messages to the object's messages
-        get_messages        Return chat messages
-        append_messages     Append messages to chat object
-        save                Save Chat object to JSON format using its representation
-    """
-
-    lock = threading.RLock()
-
-    def __init__(self):
-        self._messages = []
-
-    def append_message(self, message):
-        if isinstance(message, ChatMessage):
-            self._messages.append(message) # append is thread-safe
-        else:
-            print(">>> Unable to append {} to Chat object.".format(message))
-
-    def get_messages(self, begin, end):
-        return self._messages[begin: end]
-
-    def extend_messages(self, messages):
-        for message in messages:
-            self.append_message(message)
-
-    def save_to_json(self, base_dir, file_name=None):
-        """ Save to file named file_name in base_dir. If file_name=None (default)
-        the file name will be 'chat_session_hhmmss.json'.
-
-        It is always a good idea to test this function BEFORE running the actual
-        chat session to make sure that the data will be saved after the session.
-        For example, one could do
-        Chat().save_to_json(CURRENT_SAVE_DIR, file_name="test_save.txt")
-        """
-
-        if file_name is None:
-            now = datetime.datetime.now().time().replace(microsecond = 0).__str__()
-            now = now.replace(":","") # : is not allowed in windows file names.
-            file_name = "chat_session_{}.json".format(now)
-        file_name = os.path.join(base_dir, file_name)
-
-        json_object = [message.as_dict() for message in self._messages]
-
-        try:
-            with open(file_name, 'w') as f:
-                json.dump(json_object, f, indent=4)
-        except Exception as e:
-            print(">>> There was a problem with saving the chat object.")
-            print(e)
-
-    def __repr__(self):
-        return dict([
-            ("messages", [message.__repr__() for message in self._messages])
-        ]).__str__()
-
-    def __str__(self):
-        return("Chat object containing {} messages. ".format(len(self._messages)))
-
-
-class MockChat(threading.Thread):
+class MockChat:
     """ A MockChat object represents a mock chat, i.e. a reproduction of a live
     chat from a saved list of messages.
 
     Attributes:
-        has_new_messages    A threading.Condition object that notifies all the
-                            waiting threads when new messages are available.
-        is_over             A threading.Event object that is set when the chat
-                            is over.
-        start_time          The time at which the chat started. This is the
-                            moment where the first message of the chat was posted.
-        refresh_rate        The refreshing rate of the Chat.
+        is_over: A booleann variable that is set when the chat is over.
+        target: A target object where the chat messages are put.
+        start_time: The time at which the chat started. This is the moment where the first message of the chat was posted.
 
     Methods:
-        start               Start the chat.
-        estimated_duration  Estimated duration of the mock chat.
+        start: Start putting the chat messages in the Chat object.
+        duration: Estimated duration of the mock chat.
+        run: Starts making chat messages available until the chat is over.
+        start_refresh_loop: calls the run method.
     """
 
     index = 0
-    is_over = threading.Event()
-    has_new_messages = threading.Condition()
+    is_over = False
 
-    def __init__(self, arch_mess, chat, refresh_rate, speed=1):
+    def __init__(self, archive_file, target, speed=1):
         """ A mock chat is an object constructed from a list of ChatMessage
         whose purpose is to re-create the chat thread.
 
@@ -225,37 +157,71 @@ class MockChat(threading.Thread):
         the chat at speed times the speed.
         """
 
-        threading.Thread.__init__(self, name="Mock chat.")
-        self.chat = chat
-        self._arch_mess = arch_mess
+        self.target = target
+        with open(archive_file, 'r', encoding='utf8') as f:
+            self._arch_mess = json.load(f) # List of liveChatMessage ressources
+
+        # Now self._arch_mess is a list of ChatMessage objects
+        self._arch_mess = [ChatMessage(ress) for ress in self._arch_mess]
+
         try:
-            self.start_time = dateparser(arch_mess[0].published_at)
+            self.start_time = dateparser(self._arch_mess[0].published_at)
         except IndexError:
-            print("No messages in MockChat.")
+            print(">>> No messages in MockChat.")
         if isinstance(speed, int):
             self.speed = speed
         else:
             self.speed = 1
-        self.refresh_rate = refresh_rate
-        self.nbr_messages = len(arch_mess)
+        self.refresh_rate = MOCKCHAT_REFRESH_RATE
+        self.nbr_messages = len(self._arch_mess)
 
-    def estimated_duration(self):
+    @property
+    def duration(self):
         """ How long should the mock chat last, given its speed."""
 
         span = (dateparser(self._arch_mess[-1].published_at)
                 - dateparser(self._arch_mess[0].published_at)).total_seconds()
         return span / self.speed
+    
+    def _wait_to_refresh(self):
+        """ This function tries to wait for self.refresh_rate seconds and
+        catches KeyboardInterrupt exceptions. This allows the user to have more
+        control over the session...        
+        """
+        
+        try:
+            time.sleep(self.refresh_rate)
+        except KeyboardInterrupt:
+            print(">>> Mock chat interrupted.\n"
+                  ">>> Any positive integer entered will become the new speed.\n"
+                  ">>> Entering 0 will stop the chat.\n"
+                  ">>> Any other entry will make the chat resume. "
+            )
+            try:
+                n = int(input(">>> Your input: "))
+            except Exception:
+                pass
+            else:
+                if n == 0:
+                    print(">>> Stopping the chat.")
+                    self.is_over = True
+                elif 0 < n:
+                    print(">>> New speed is {}.".format(n))
+                    self.speed = n
 
+    def start_refresh_loop(self):
+        self.run()
+                    
     def run(self):
         """ As the time passes, more messages are available in the MockChat.
         The run method makes those messages available (by putting them in
-        self.chat) and notifies all waiting threads via its has_new_messages
-        condition.
+        self.target). This loop can be interrupted via a KeyboardInterrupt 
+        exception.
         """
 
         actual_start_time = datetime.datetime.now()
 
-        while not self.is_over.is_set():
+        while not self.is_over:
             delta = datetime.datetime.now() - actual_start_time
             delta *= self.speed # Accelerate time
 
@@ -265,14 +231,12 @@ class MockChat(threading.Thread):
                 self.index += 1
 
             if self.index == self.nbr_messages:
-                self.is_over.set()
+                self.is_over = True
 
             if old_index < self.index:
-                self.chat.extend_messages(self._arch_mess[old_index: self.index])
-                with self.has_new_messages:
-                    self.has_new_messages.notify_all()
+                self.target.extend_messages(self._arch_mess[old_index: self.index])
 
-            time.sleep(self.refresh_rate)
+            self._wait_to_refresh()
 
     def __repr__(self):
         return self.__str__()
@@ -284,102 +248,130 @@ class MockChat(threading.Thread):
         )
 
 
-class LiveChat(threading.Thread):
-    """ A LiveChat object represents a live youtube chat, i.e. live chat attached
-    to a youtube live broadcast.
+class LiveChat:
+    """ A LiveChat object represents a live youtube chat, i.e. live chat attached to a youtube live broadcast.
 
     Attributes:
-        has_new_messages    A threading.Condition object that notifies all the
-                            waiting threads when new messages are available.
-        is_over             A threading.Event object that is set when the chat
-                            is over.
+        is_over: A booleann variable that is set when the chat is over.
+        target: A target object where the chat messages are put.
+        id: id of the livechat
 
     Methods:
-        start               Start refreshing the chat via the youtube service.
+        start: Start refreshing the chat via the youtube service.
+        dump_buffer_to_json: Dump the buffer in json format
+        save_to_json: Save the LiveChat object.
     """
 
-    index = 0
-    is_over = threading.Event()
-    has_new_messages = threading.Condition()
-
+    is_over = False
     _buffer = []
-    _bkp_count = 0
-    _bkp_file_name_template = ".chat_ressource_backup_{}.bkp"
-    _save_file_name_template = "chat_ressource_{}.json"
+    _bkp_file_paths = []
 
-    def __init__(self, youtube, id, chat, refresh_rate, **kwargs):
-        """ A LiveChat
+    def __init__(self, client, id, target, **kwargs):
+        """ Initialize a LiveChat object.
+
+        Arguments:
+            client: An authenticated youtube service.
+            id: the id of the live chat.
+            target: a target in which the chat messages are put.
         """
 
-        threading.Thread.__init__(self, name="Live chat.")
-        self.chat = chat
-        self.youtube = youtube
+        self.target = target
+        self.client = client
         self.id = id
-        self.refresh_rate = refresh_rate
-        self.buffer_size = kwargs.get("buffer_size", 5)
+        self.refresh_rate = LIVECHAT_REFRESH_RATE
+        self._bkp_dir = os.path.join(LIVECHAT_BACKUP_DIR, self.id)
+        self._last_buffer_dump = datetime.datetime.now()
+
+        try:
+            os.mkdir(self._bkp_dir)
+        except FileExistsError as e:
+            pass
+        else:
+            print(">>> Directory {} created.".format(self._bkp_dir))
 
     def dump_buffer_to_json(self):
-        file_name = self._bkp_file_name_template.format(self._bkp_count)
-
-        try:
-            with open(file_name, 'w') as f:
-                json.dump(self._buffer, f)
-        except Exception as e:
-            print(">>> There was a problem with backing-up the live chat.")
-            print(e)
-        else:
-            self._buffer = []
-            self._bkp_count += 1
-
-    def save_to_json(self, base_dir, file_name=None):
-        """ Save to file named 'chat_ressource.json' in base_dir.
-
-        It is always a good idea to test this function BEFORE running the actual
-        chat session to make sure that the data will be saved after the session.
-        For example, one could do
-        LiveChat().save_to_json(CURRENT_SAVE_DIR, file_name="test_save.txt")
+        """ Every LiveChat object holds a buffer with all liveChatMessage
+        responses it recieved from youtube. This function dumps the buffer to a
+        json file (automatically named). After the live chat is over, those
+        backup files can be combined into a single chat ressource by calling
+        the save_to_json method.
         """
 
-        # Collecting the backups into a single list called json_object
-        json_object = []
-        for n in range(self._bkp_count):
-            try:
-                with open(self._bkp_file_name_template.format(n), 'r') as f:
-                    json_object.extend(json.load(f))
-            except Exception as e:
-                print(">>> There was a problem with loading the {}th backup.".format(n))
-                print(e)
-
-        # Preparing the file_name
-        if file_name is None:
-            now = datetime.datetime.now().time().replace(microsecond = 0).__str__()
-            now = now.replace(":","") # : is not allowed in windows file names.
-            file_name = self._save_file_name_template.format(now)
-        file_name = os.path.join(base_dir, file_name)
-
-        # Dump json_object
+        file_name = os.path.join(self._bkp_dir, datetimestamp())
+        
         try:
-            with open(file_name, 'w') as f:
-                json.dump(json_object, f, indent=4)
+            with open(file_name, 'w', encoding='utf8') as f:
+                json.dump(self._buffer, f, ensure_ascii=False)
         except Exception as e:
-            print(">>> There was a problem with saving the chat object.")
+            print(">>> There was a problem with dumping the live chat buffer.")
             print(e)
+        else:
+            print(">>> Buffer dumped. ")
+            self._buffer = []
+            self._bkp_file_paths.append(file_name)
+            self._last_buffer_dump = datetime.datetime.now()
 
+    def save_to_json(self, file_name):
+        """ Save to file_name. This method collects all backups made during the live chat into a single file.
+
+        It is always a good idea to test this function BEFORE running the actual chat session to make sure that the data will be saved after the session.
+        For example, one could do
+        LiveChat().save_to_json(file_name="test_save.txt")
+
+        If, for some reason, the program crashed and the LiveChat doesn't exist
+        anymore, the backups can be "manually" combined using the
+        combine_live_chat_backups_in_dir function in this module.
+        """
+
+        # Collecting the backups into a single list
+        messages = combine_liveChatMessage_ressources(self._bkp_file_paths)
+
+        try:
+            with open(file_name, 'w', encoding='utf8') as f:
+                json.dump(messages, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            print(">>> There was a problem with saving the live chat object.")
+        else:
+            print(">>> Live chat succesfully saved to {}.".format(file_name))
+
+    def _wait_to_refresh(self):
+        """ This function tries to wait for self.refresh_rate seconds and
+        catches KeyboardInterrupt exceptions. This allows the user to have more
+        control over the session...        
+        """
+        
+        try:
+            time.sleep(self.refresh_rate)
+        except KeyboardInterrupt:
+            print(">>> Live chat interrupted at {}.\n"
+                  ">>> Buffer size: {}".format(
+                  datetime.datetime.now().time().replace(microsecond = 0),
+                  len(self._buffer)
+                  )
+            )
+            if input(">>> Type \"Y\" to dump the buffer: ") == 'Y':
+                self.dump_buffer_to_json()
+            if input(">>> Type \"Y\" to exit (and dump the buffer): ") == 'Y':
+                print(">>> Exiting the refreshing loop.")
+                self.is_over = True
+
+    def start_refresh_loop(self):
+        self.run()
 
     def run(self):
         """ As the time passes, more messages are available on youtube.
         The run method makes those messages available (by retrieving them and
-        then by putting them in self.chat) and notifies all waiting threads via
+        then by putting them in self.target) and notifies all waiting threads via
         its has_new_messages condition.
         """
 
-        live_chat_messages = self.youtube.liveChatMessages()
+        live_chat_messages = self.client.liveChatMessages()
         request = live_chat_messages.list(
             liveChatId=self.id,
-            part="snippet"
+            part="id, snippet, authorDetails"
         )
 
-        while request is not None and not self.is_over.is_set(): #and input("Stop?") != "Y": #VERB
+        while request is not None and not self.is_over:
             try:
                 response = request.execute()
             except HttpError as e:
@@ -394,83 +386,73 @@ class LiveChat(threading.Thread):
                     .format(e.resp.status, e_message)
                 )
                 print(">>> Closing the live chat.")
-                break 
+                self.is_over = True
             else:
                 if len(response["items"]) > 0:
-                    message_ressource = [item["snippet"] for item in response["items"]]
-
-                    self.chat.extend_messages(
-                        [ChatMessage(**message) for message in message_ressource]
+                    # Put messages in the chat
+                    self.target.extend_messages(
+                        [ChatMessage(ress) for ress in response["items"]]
                     )
 
-                    self.index += len(message_ressource)
+                    self._buffer.extend(response["items"])
 
-                    self._buffer.extend(message_ressource)
-                    if len(self._buffer) >= self.buffer_size:
+                    # Dump the buffer if it is too big
+                    if len(self._buffer) >= LIVECHAT_BUFFER_SIZE:
                         self.dump_buffer_to_json()
 
-                    with self.has_new_messages:
-                        self.has_new_messages.notify_all()
+                    # Dump the buffer if it has been held for too long
+                    if datetime.datetime.now() - self._last_buffer_dump > LIVECHAT_BUFFER_HOLD:
+                        self.dump_buffer_to_json()
 
                 request = live_chat_messages.list_next(request, response)
-                time.sleep(self.refresh_rate)
+                self._wait_to_refresh()
         self.dump_buffer_to_json()
-        self.is_over.set()
-        print(">>> The live chat is over.")   
 
     def __repr__(self):
         return "Live Chat with id {}.".format(self.id)
 
-def mock_chat_from_file(file, chat, refresh_rate, **kwargs):
-    """ Build a MockChat from a file. Here file contains a json-loadable list
-    of chat messages (comming from youtube responses or ChatMessage.as_dict().
-    """
 
-    with open(file, 'r') as f:
-        raw_messages = json.load(f)
-
-    if "amount" in kwargs:
-        raw_messages = raw_messages[:kwargs["amount"]]
-
-    messages = [ChatMessage(**dict) for dict in raw_messages]
-
-    return MockChat(
-        messages,
-        chat,
-        refresh_rate,
-        kwargs.get("speed", 1)
-    )
-    
-def combine_live_chat_backups_to_json(files, base_dir, file_name=None):
-    """ Save to file named 'chat_ressource_hhmmss.json' in base_dir.
-
-    It is always a good idea to test this function BEFORE running the actual
-    chat session to make sure that the data will be saved after the session.
-    For example, one could do
-    live_chat.save_to_json(CURRENT_SAVE_DIR, file_name="test_save.txt")
+def combine_liveChatMessage_ressources(files):
+    """ Combine the lists of youtube liveChatMessage ressources in the files
+    into a single list and return the list.
     """
 
     # Collecting the backups into a single list called json_object
-    json_object = []
+    messages = []
     for file in files:
         try:
-            with open(file, 'r') as f:
-                json_object.extend(json.load(f))
+            with open(file, 'r', encoding='utf8') as f:
+                new_messages = json.load(f)
         except Exception as e:
-            print(">>> There was a problem with loading the {}th backup.".format(n))
+            print(">>> There was a problem with loading the file {}.".format(file))
             print(e)
+        else:
+            # Keep only the messages not already in messages
+            new_messages = [mess for mess in new_messages if mess not in messages]
+            messages.extend(new_messages)
 
-    # Preparing the file_name
-    if file_name is None:
-        now = datetime.datetime.now().time().replace(microsecond = 0).__str__()
-        now = now.replace(":","") # : is not allowed in windows file names.
-        file_name = "chat_ressource_{}.json".format(now)
-    file_name = os.path.join(base_dir, file_name)
+    # Sort according to time
+    messages = sorted(
+        messages,
+        key=(lambda mess: dateparser(mess.get('snippet').get('publishedAt')))
+    )
+
+    return messages
+
+def combine_live_chat_backups_in_dir(dir, file_name):
+    """ Combines all the live chat backups in the directory dir and saves it
+    in file_name (as a json object).
+    """
+
+    files = [os.path.join(dir, file) for file in os.listdir(dir)]
+    json_object = combine_liveChatMessage_ressources(files)
 
     # Dump json_object
     try:
-        with open(file_name, 'w') as f:
-            json.dump(json_object, f, indent=4)
+        with open(file_name, 'w', encoding='utf8') as f:
+            json.dump(json_object, f, indent=4, ensure_ascii=False)
     except Exception as e:
         print(">>> There was a problem with saving the chat object.")
         print(e)
+    print(">>> Succesfully saved to ressource to {}.".format(file_name))
+

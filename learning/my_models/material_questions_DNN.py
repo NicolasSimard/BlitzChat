@@ -164,9 +164,7 @@ test_x  = features[split:]
 train_y = np.array(full_data[DATA_COLUMN_NAMES[-1]][:split])
 test_y  = np.array(full_data[DATA_COLUMN_NAMES[-1]][split:])
 
-print("""
-Number of words: {}
-Shapes:
+print("""Shapes:
 train_x: {}
 train_y: {}
 test_x : {}
@@ -195,7 +193,6 @@ training = model.fit(
 score = model.evaluate(test_x, test_y)
 print("Metrics: {}".format(model.metrics_names))
 print("Score: {}".format(score))
-
 print(classification(model, test_x, test_y))
 
 print("(Precision, Recall, F1) = ({}, {}, {})".format(
