@@ -26,14 +26,12 @@ from configparser import ConfigParser
 config = ConfigParser()
 config.read(os.path.join(os.getcwd(), 'config.ini'))
 
-livechat_config = config['livechat']
-LIVECHAT_BACKUP_DIR = livechat_config['backup']
-LIVECHAT_BUFFER_SIZE = int(livechat_config['buffsize'])
-LIVECHAT_REFRESH_RATE = int(livechat_config['refresh'])
-LIVECHAT_BUFFER_HOLD = datetime.timedelta(seconds=int(livechat_config['bufftimer']))
+LIVECHAT_BACKUP_DIR = config['livechat']['backup']
+LIVECHAT_BUFFER_SIZE = config.getint('livechat', 'buffsize')
+LIVECHAT_REFRESH_RATE = config.getint('livechat', 'refresh')
+LIVECHAT_BUFFER_HOLD = datetime.timedelta(seconds=config.getint('livechat', 'bufftimer'))
 
-mockchat_config = config['mockchat']
-MOCKCHAT_REFRESH_RATE = int(mockchat_config['refresh'])
+MOCKCHAT_REFRESH_RATE = config.getint('livechat', 'refresh')
 
 def timestamp():
     """" Return a string of the form hhmmss representing the time now. """
