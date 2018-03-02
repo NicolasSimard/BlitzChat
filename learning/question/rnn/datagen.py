@@ -17,7 +17,6 @@ from configparser import ConfigParser
 import pandas as pd
 import tkinter
 from tkinter.filedialog import askopenfilename, asksaveasfilename
-
 from preprocess import prepare
 
 config = ConfigParser()
@@ -97,7 +96,7 @@ def append_to_datasets(labeled_data):
     with open(RESSOURCES_INCLUDED, 'w') as f:
         json.dump(included, f, indent=4)
 
-def shuffle_dataset():
+def shuffle_datasets():
     """ Loads the train and test datasets and shuffles them. """
 
     train = pd.read_csv(config['data']['trainset'])
@@ -109,18 +108,34 @@ def shuffle_dataset():
     train.to_csv(config['data']['trainset'], index=False)
     test.to_csv(config['data']['testset'], index=False)
 
+def generate_intchar(intchar_file):
+    train = pd.read_csv(config['data']['trainset'])
+    test = pd.read_csv(config['data']['testset'])
+    full = train.append(test, ignore_index=True)
+    
+    sent = full[COLUMN[0]]
+    chars = sorted(list(set(''.join(sent))))
+    corr = dict(list(enumerate(chars)))
+    
+    with open(intchar_file, 'w') as f:
+        json.dump(corr, f, indent=4)
+    
 if __name__ == "__main__":
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument('mode',
         help="Choose the mode of the script:\n"
-        "0: prepare raw data (from ressource) to be labeled;\n"
-        "1: Incorporate labeled examples to the train and test datasets.",
+        "0: Shuffle the dataset;"
+        "1: prepare raw data (from ressource) to be labeled;\n"
+        "2: Incorporate labeled examples to the train and test datasets."
+        "3: Generate an int-char bijection file.",
         default="0"
     )
     args = parser.parse_args()
 
     if args.mode == "0":
+        shuffle_datasets()
+    elif args.mode == "1":
         tkinter.Tk().withdraw()
         ressource_file = tkinter.filedialog.askopenfilename(
             title='Select ressource',
@@ -137,7 +152,7 @@ if __name__ == "__main__":
         )
 
         prepare_for_labeling(ressource_file, output_file)
-    elif args.mode == "1":
+    elif args.mode == "2":
         tkinter.Tk().withdraw()
         labeled_data = tkinter.filedialog.askopenfilename(
             title='Select a file of labeled examples',
@@ -146,5 +161,15 @@ if __name__ == "__main__":
         )
 
         append_to_datasets(labeled_data)
+    elif args.mode == "3":
+        tkinter.Tk().withdraw()
+        intchar_file = tkinter.filedialog.asksaveasfilename(
+            title='Choose a file to save the int-char correpondence',
+            defaultextension='json',
+            initialdir=config['DEFAULT']['basedir'],
+            initialfile='intchar.json'
+        )
+
+        generate_intchar(intchar_file)
     else:
         print(">>> invalid mode: {}".format(args.mode))
