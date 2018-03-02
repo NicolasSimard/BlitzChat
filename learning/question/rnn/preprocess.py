@@ -5,6 +5,8 @@ import tkinter
 from tkinter.filedialog import askopenfilename, asksaveasfilename
 
 import numpy as np
+import pandas as pd
+from math import ceil
 from tensorflow.python.keras.utils import Sequence
 
 # Package to replace accents by their non-accent equivalent
@@ -22,6 +24,7 @@ def prepare(messages):
 
     if not isinstance(messages, list):
         messages = [messages]
+        
     sentences = []
     for message in messages:
         message = unidecode.unidecode(message).lower().strip()
@@ -36,9 +39,6 @@ def featurize_sentences(sentences, int_char_corr):
     """ Given sentences, compute their feature tensor and return it.
     Each feature tensor has shape (maxlen, num_vocab).
     """
-
-    if not isinstance(sentences, list):
-        sentences = [sentences]
 
     examples = np.zeros(
         (len(sentences), config.getint('data', 'maxlen'), int_char_corr.num_vocab)
@@ -106,8 +106,38 @@ class IntCharCorr:
         return str(self.intchar)
 
 class Generator(Sequence):
-    pass
+    """ A Generator object generates batches of training examples out of the training set.
+    """
+    
+    def __init__(self, data_file,int_char_corr, batch_size=32):
+        self.data_file = data_file
+        self.int_char_corr = int_char_corr
+        self.batch_size = batch_size
+        
+        self.train = pd.read_csv(data_file)
+        self.sentences = self.train['sentences']
+        self.labels = self.train['category']
+        
+    def __getitem__(self, idx):
+        batch = featurize_sentences(
+            self.sentences[idx*self.batch_size: (idx + 1)*self.batch_size],
+            self.int_char_corr
+        )
+        
+        return batch, self.labels[idx*self.batch_size: (idx + 1)*self.batch_size]
+        
+    def __len__(self):
+        return ceil(len(self.sentences)/self.batch_size)
+        
+    def on_epoch_end(self):
+        pass
 
+    def __str__(self):
+        return "Generator on training set {} with batch size {} and length {}".format(
+            self.data_file,
+            self.batch_size,
+            len(self)
+        )
 
 int_char_corr = IntCharCorr(config['data']['intchar'])
 
@@ -124,7 +154,11 @@ if __name__ == "__main__":
 
     sent = "Alors, comment vous trouvez le video à date ?"
     print(sent)
-    example = featurize_sentences(sent, int_char_corr)
-    print(unfeaturize_examples(example, int_char_corr))
+    examples = featurize_sentences([sent], int_char_corr)
+    print(unfeaturize_examples(examples, int_char_corr))
     
-    print(featurize_messages(message, int_char_corr).shape)
+    print(featurize_messages([message], int_char_corr).shape)
+    
+    generator = Generator(config['data']['trainset'], int_char_corr)
+    print(generator)
+    print(generator[18][0].shape)
