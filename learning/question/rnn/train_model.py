@@ -19,10 +19,10 @@ CHECKPOINT_FILE = os.path.join(
     "{epoch:02d}-{loss:.4f}.hdf5"
 )
 
-generator = Generator(config['data']['trainset'], int_char_corr, batch_size=32)
+generator = Generator(config['data']['trainset'], int_char_corr, batch_size=100)
 
 if __name__ == "__main__":
-    if len(sys.argv) > 0:
+    if len(sys.argv) > 1:
         epochs = int(sys.argv[1])
     else:
         epochs = 1
