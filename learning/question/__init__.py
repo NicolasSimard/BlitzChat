@@ -1,1 +1,1 @@
-from .rnn.infer import predict
+from .rnn.rnn_question import rnn_predict
