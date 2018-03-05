@@ -1,2 +1,0 @@
-def predict(raw):
-    pass
