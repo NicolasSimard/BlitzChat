@@ -3,8 +3,12 @@ from dateutil.parser import parse
 import re
 
 from .tools import get_channel_title, delete_message
+from learning.question import rnn_predict
 
 def question_labeler(message):
+    prediction = rnn_predict(message.content)  
+
+def naive_question_labeler(message):
     if "?" in message.content:
         message.add_label("Q")
 
