@@ -1,4 +1,5 @@
 import re
+import os
 import json
 from configparser import ConfigParser
 
@@ -14,15 +15,18 @@ from math import ceil
 # Keras
 from tensorflow.python.keras.utils import Sequence
 from tensorflow.python.keras.models import Model, load_model
+from tensorflow.python.keras.callbacks import ModelCheckpoint
 from tensorflow.python.keras.layers import Input, GRU, Dense, Dropout
 
 # Package to replace accents by their non-accent equivalent
 import unidecode
 
-# Load config file
-CONFIG_FILE = r'C:\Users\nicolas\GitHub\BlitzChat\learning\question\rnn\config.ini'
+# Load local config file
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_FILE = os.path.join(BASE_DIR, 'config.ini')
 config = ConfigParser()
 config.read(CONFIG_FILE)
+config['DEFAULT']['basedir'] = BASE_DIR # basedir is needed by other variables
 
 # ======================= Preprocessing functions =============================
 
@@ -51,12 +55,14 @@ def featurize_sentences(sentences, int_char_corr):
     Each feature tensor has shape (maxlen, num_vocab).
     """
 
+    maxlen = config.getint('data', 'maxlen')
+    
     examples = np.zeros(
-        (len(sentences), config.getint('data', 'maxlen'), int_char_corr.num_vocab)
+        (len(sentences), maxlen, int_char_corr.num_vocab)
     )
 
     for i, sent in enumerate(sentences):
-        for j, c in enumerate(sent):
+        for j, c in enumerate(sent[:maxlen]):
             examples[i, j, int_char_corr.to_int(c)] = 1
 
     return examples
@@ -122,7 +128,7 @@ class Generator(Sequence):
     """ A Generator object generates batches of training examples out of the training set.
     """
 
-    def __init__(self, data_file,int_char_corr, batch_size=32):
+    def __init__(self, data_file, int_char_corr, batch_size=32):
         self.data_file = data_file
         self.int_char_corr = int_char_corr
         self.batch_size = batch_size
@@ -185,7 +191,7 @@ def train_model(trained_file, int_char_corr, epochs, batch_size):
     )
 
     checkpoint_file = os.path.join(
-        config['training']['traineddir'],
+        config['model']['traineddir'],
         "{epoch:02d}-{loss:.4f}.hdf5"
     )
 
