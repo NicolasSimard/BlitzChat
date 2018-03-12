@@ -8,7 +8,7 @@ from configparser import ConfigParser
 
 from youtube.chat import *
 from youtube.tools import get_authenticated_service
-from youtube.filter import get_username, convert_to_local_time, question_labeler
+from youtube.filter import get_username, convert_to_local_time
 from youtube.target import Session
 
 # Read the config file
@@ -21,7 +21,6 @@ if __name__ == "__main__":
     # Built a chat object
     session = Session()
     session.add_filter(convert_to_local_time)
-    session.add_filter(question_labeler)
 
     # Create the mockchat
     tkinter.Tk().withdraw()
