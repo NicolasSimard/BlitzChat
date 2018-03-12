@@ -19,7 +19,7 @@ config.read('config.ini')
 
 CREDENTIALS = 'redlive'
 START_TIME = datetime.datetime(2018, 3, 10, 17)
-INTERVAL = 5
+INTERVAL = 60
 
 def archive_chat():
     client = get_authenticated_service(
@@ -37,7 +37,7 @@ def archive_chat():
     if livebroadcast is None:
         livebroadcast = get_active_livebroadcast(client)
     
-    # In nothing worked, return
+    # If nothing worked, return
     if livebroadcast is None:
         print(">>> {}: No active live broadcast.".format(datetime.datetime.now()))
         return False
@@ -61,9 +61,10 @@ def archive_chat():
     return True
     
 if __name__ == '__main__':
-    print("for RedLive")
+    print("Credentials: {}".format(CREDENTIALS))
     delay = (START_TIME - datetime.datetime.now()).seconds
-    print(">>> Scheduled at{}. {} seconds until program runs.".format(START_TIME, delay))
+    print(">>> Scheduled at {}. {} seconds until program runs.".format(
+        START_TIME, delay))
     time.sleep(delay)
     
     # Try to find the broadcast until one is found...
